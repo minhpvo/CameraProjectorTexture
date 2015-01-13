@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 2.8)
+project( CamProTexture )
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fopenmp -O4")
+find_package( OpenCV REQUIRED )
+add_executable( CamProTexture main.cpp IlluminationFlowUlti.cpp ImagePro.cpp  Matrix.cpp Ultility.cpp  )
+target_link_libraries( CamProTexture ${OpenCV_LIBS})
