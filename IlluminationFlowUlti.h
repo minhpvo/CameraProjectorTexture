@@ -188,6 +188,7 @@ double LKtranslation(double *src, double *dst, CPoint *Pts, int hsubset, int wid
 double SearchLK(CPoint2 From, CPoint2 &Target, double *Img1Para, double *Img2Para, int nChannels, int width1, int height1, int width2, int height2, LKParameters LKArg,  double *TemplateImg = 0, double *ZNCCStorage = 0, double *iWp = 0, double *direction = 0, double* iCovariance = 0);
 double EpipSearchLK(CPoint2 *dPts, double *EpiLine, double *Img1, double *Img2, double *Para1, double *Para2, int nchannels, int width1, int height1, int width2, int height2, LKParameters Flowarg, double *TemplateImg, double *ZNCCStorage, double *TarPatch, double *iWp = 0,double *iCovariance = 0);
 
+double BruteforceMatchingEpipolar(CPoint2 From, CPoint2 &Target, double *direction, int maxdisparity, double *Img1, double *Img2, double *Img2Para, int nchannels, int width1, int height1, int width2, int height2, LKParameters LKArg, double *tPatch, double *tZNCC, double *Znssd_reqd);
 int MatchingCheck(char *Img1, char *Img2, float *WarpingParas, LKParameters LKArg, double scale, int nchannels, int width1, int height1, int width2, int height2);
 int MatchingCheck2(float *WarpingParas1, float *WarpingParas2, int width1, int height1, int width2, int height2, bool AffineShape = false);
 void DIC_DenseScaleSelection(int *Scale, float *Fu, float *Fv, double *Img1, double *Img2, int width, int height, LKParameters Flowarg, FlowScaleSelection ScaleSel, double flowThresh, CPoint *DenseFlowBoundary = NULL);

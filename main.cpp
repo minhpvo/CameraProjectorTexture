@@ -12,6 +12,53 @@ using namespace std;
 using namespace cv;
 Point2f point;
 bool addRemovePt = false;
+int VisTrack(char *PATH)
+{
+	char Fname[200];
+	Mat gray, prevGray, tImg, backGround;
+
+	int nframe = 0, count = 0, width, height, x, y;
+	vector<Point2f> points[2];
+	for (int ii = 155; ii < 180; ii++)
+	{
+		sprintf(Fname, "%s/In/(%d).png", PATH, ii);
+		Mat gray = imread(Fname, 0);
+		if (gray.empty())
+			continue;
+		count++;
+		width = gray.cols, height = gray.rows;
+		cvtColor(gray, backGround, CV_GRAY2RGB);
+
+		sprintf(Fname, "%s/Sep/ (%d).png", PATH, ii);
+		tImg = imread(Fname, 0);
+		if (tImg.empty())
+			continue;
+
+		sprintf(Fname, "%s/WO/IllumTrack_%05d.txt", PATH, ii);
+		FILE *fp = fopen(Fname, "r");
+		Point2f xy;
+		while (fscanf(fp, "%f %f\n", &xy.x, &xy.y) != EOF)
+			points[1].push_back(xy);
+		fclose(fp);
+
+		for (int jj = 0; jj < points[1].size(); jj++)
+		{
+			x = (int)points[1][jj].x, y = (int)points[1][jj].y;
+			if (x < 400 || x > 1250 || y < 250 || y>height - 150)
+				continue;
+			if (tImg.data[x + y*width] < 2)
+				continue;
+			circle(backGround, points[1][jj], 5, Scalar(83, 185, 255), -1, 8);
+		}
+
+		sprintf(Fname, "%s/TrackIllum_%d.png", PATH, ii);
+		imwrite(Fname, backGround);
+
+		points[1].clear();
+	}
+	return 0;
+
+}
 int TrackOpenCVLK(int start, int nframes, char *PATH)
 {
 	TermCriteria termcrit(CV_TERMCRIT_ITER | CV_TERMCRIT_EPS, 20, 0.03);
@@ -24,11 +71,11 @@ int TrackOpenCVLK(int start, int nframes, char *PATH)
 	vector<Point2f> points[2];
 	//Mat white(1080,1920, CV_8UC3, Scalar(255,255,255));
 	char Fname[200];
+
 	int nframe = 0, count = 0, width, height, x, y;
 	while (nframe < nframes)
 	{
-		//sprintf(Fname, "%s/Sep/wTexture1_%05d.png", PATH, nframe+start);
-		sprintf(Fname, "%s/Sep/wLuminance1_%05d.png", PATH, nframe + start);
+		sprintf(Fname, "%s/Sep/ (%d).png", PATH, nframe + start);
 		Mat gray = imread(Fname, 0);
 		if (gray.empty())
 			continue;
@@ -36,8 +83,8 @@ int TrackOpenCVLK(int start, int nframes, char *PATH)
 		width = gray.cols, height = gray.rows;
 
 		//Create background
-		//sprintf(Fname, "%s/Sep/wTexture1_%05d.png", PATH, nframe+start);
-		sprintf(Fname, "%s/Sep/wLuminance1_%05d.png", PATH, nframe + start);
+		//sprintf(Fname, "%s/Sep/ (%d).png", PATH, nframe + start);
+		sprintf(Fname, "%s/In/(%d).png", PATH, nframe + start);
 		tImg = imread(Fname, 0);
 		if (tImg.empty())
 			continue;
@@ -45,32 +92,33 @@ int TrackOpenCVLK(int start, int nframes, char *PATH)
 
 		if (nframe == 0)
 		{
-			{
-				sprintf(Fname, "%s/TextTrack_%05d.txt", PATH, nframe + start);
+			/*{
+				sprintf(Fname, "%s/IllumTrack_%05d.txt", PATH, nframe + start);
 				FILE *fp = fopen(Fname, "r");
 				Point2f xy;
 				for (int jj = 0; jj < 914; jj++)
 				{
-					fscanf(fp, "%f %f\n", &xy.x, &xy.y);
-					points[1].push_back(xy);
+				fscanf(fp, "%f %f\n", &xy.x, &xy.y);
+				points[1].push_back(xy);
 				}
 				fclose(fp);
-			}
+				}*/
 
 			// automatic initialization
-			/*goodFeaturesToTrack(gray, points[1], MAX_COUNT, 0.01, 10, Mat(), 3, 0, 0.04);
-			cornerSubPix(gray, points[1], subPixWinSize, Size(-1,-1), termcrit);
+			goodFeaturesToTrack(gray, points[1], MAX_COUNT, 0.01, 10, Mat(), 3, 0, 0.04);
+			cornerSubPix(gray, points[1], subPixWinSize, Size(-1, -1), termcrit);
 			addRemovePt = false;
 
-			for(int jj=0; jj<points[1].size(); jj++)
+			for (int jj = 0; jj < points[1].size(); jj++)
 			{
-			x = (int)points[1][jj].x, y = (int) points[1][jj].y;
-			if(x<10 || x > width - 10 || y < 10 || y>height -10)
-			continue;
-			if(tImg.data[x+y*width] >250)
-			continue;
-			circle( backGround, points[1][jj], 5, Scalar(83,185,255), -1, 8);
-			}*/
+				x = (int)points[1][jj].x, y = (int)points[1][jj].y;
+				if (x < 400 || x > 1500 || y < 100 || y>height - 150)
+					continue;
+				if (tImg.data[x + y*width] < 2)
+					continue;
+				circle(backGround, points[1][jj], 5, Scalar(83, 185, 255), -1, 8);
+			}
+
 			//sprintf(Fname, "%s/TextTrack_%05d.txt", PATH, nframe+start);
 			sprintf(Fname, "%s/IllumTrack_%05d.txt", PATH, nframe + start);
 			FILE *fp = fopen(Fname, "w+");
@@ -109,9 +157,9 @@ int TrackOpenCVLK(int start, int nframes, char *PATH)
 
 				points[1][k++] = points[1][i];
 				x = (int)points[1][i].x, y = (int)points[1][i].y;
-				if (x<10 || x > width - 10 || y < 10 || y>height - 10)
+				if (x < 400 || x > 1500 || y < 100 || y>height - 150)
 					continue;
-				if (tImg.data[x + y*width] > 250)
+				if (tImg.data[x + y*width] < 2)
 					continue;
 				circle(backGround, points[1][i], 5, Scalar(83, 185, 255), -1, 8);
 			}
@@ -136,8 +184,8 @@ int TrackOpenCVLK(int start, int nframes, char *PATH)
 
 		needToInit = false;
 		imshow("LK Demo", backGround);
-		//sprintf(Fname, "%s/Sep/TrackIllum_%d.png",PATH, nframe+start);
-		//imwrite(Fname, backGround);
+		sprintf(Fname, "%s/TrackIllum_%d.png", PATH, nframe + start);
+		imwrite(Fname, backGround);
 
 		char c = (char)waitKey(10);
 		if (c == 27)
@@ -549,7 +597,7 @@ int CamProMatchingBK(char *PATH, int nCams, int nPros, int frameID, int width, i
 int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int height, int pwidth, int pheight, int nchannels, LKParameters LKArg, CPoint *ROI, bool CheckMatching = false, bool FlowVerification = false, double triThresh = 2.0, bool saveWarping = false, bool Simulation = false)
 {
 	//Double check checker size!!!
-	int ii, jj, kk, ll, camID;
+	int ii, jj, kk, ll, camID, proID;
 	int length = width*height, plength = pwidth*pheight;
 
 	int  step = LKArg.step, hsubset = LKArg.hsubset;
@@ -561,7 +609,7 @@ int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int
 	if (!SetUpDevicesInfo(DInfo, PATH))
 	{
 		cout << "Cannot CamPro Info" << endl;
-		return 1;
+		//return 1;
 	}
 	double ProEpipole[3];
 
@@ -817,31 +865,30 @@ int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int
 
 				delete[]IllumFlow;
 			}
-			/*
-			#pragma omp critical
-			{
-			CPoint2 Ppts, Cpts; CPoint3 WC;
-			sprintf(Fname, "%s/Results/CamPro/C%dP%d_%05d.xyz", PATH, camID+1, proID+1, frameID); fp = fopen(Fname, "w+");
-			for(jj=0; jj<height; jj++)
-			{
-			for(ii=0; ii<width; ii++)
-			{
-			if(abs(WarpingParas[ii+jj*width+6*proID*length]+WarpingParas[ii+jj*width+(1+6*proID)*length])<0.001)
-			CDepth[ii+jj*width] = 0.0f;
-			else
-			{
-			Cpts.x = 1.0*ii, Cpts.y = 1.0*jj;
-			Ppts.x = WarpingParas[ii+jj*width+(6*proID)*length] + ii, Ppts.y = WarpingParas[ii+jj*width+(1+6*proID)*length] +jj;
+			/*#pragma omp critical
+						{
+						CPoint2 Ppts, Cpts; CPoint3 WC;
+						sprintf(Fname, "%s/Results/CamPro/C%dP%d_%05d.xyz", PATH, camID + 1, proID + 1, frameID); fp = fopen(Fname, "w+");
+						for (jj = 0; jj < height; jj++)
+						{
+						for (ii = 0; ii < width; ii++)
+						{
+						if (abs(WarpingParas[ii + jj*width + 6 * proID*length] + WarpingParas[ii + jj*width + (1 + 6 * proID)*length]) < 0.001)
+						CDepth[ii + jj*width] = 0.0f;
+						else
+						{
+						Cpts.x = 1.0*ii, Cpts.y = 1.0*jj;
+						Ppts.x = WarpingParas[ii + jj*width + (6 * proID)*length] + ii, Ppts.y = WarpingParas[ii + jj*width + (1 + 6 * proID)*length] + jj;
 
-			Undo_distortion(Ppts, K, distortion), Undo_distortion(Cpts, K+9, distortion+13);
-			Stereo_Triangulation2(&Ppts, &Cpts, Pmat, Pmat+12, &WC);
-			CDepth[ii+jj*width] = (float)WC.z;
-			fprintf(fp, "%.3f %.3f %.3f \n", WC.x, WC.y, WC.z);
-			}
-			}
-			}
-			fclose(fp);
-			}*/
+						Undo_distortion(Ppts, K, distortion), Undo_distortion(Cpts, K + 9, distortion + 13);
+						Stereo_Triangulation2(&Ppts, &Cpts, Pmat, Pmat + 12, &WC);
+						CDepth[ii + jj*width] = (float)WC.z;
+						fprintf(fp, "%.3f %.3f %.3f \n", WC.x, WC.y, WC.z);
+						}
+						}
+						}
+						fclose(fp);
+						}*/
 		}
 
 		//Create 3D + clean all possible bad points
@@ -854,7 +901,7 @@ int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int
 			for (ii = 0; ii < width; ii++)
 			{
 				nvalidViews = 0;
-				for (int proID = 0; proID < nPros; proID++)
+				for (proID = 0; proID < nPros; proID++)
 				{
 					validView[proID] = 0;
 					if (abs(WarpingParas[ii + jj*width + 6 * proID*length]) + abs(WarpingParas[ii + jj*width + (1 + 6 * proID)*length]) > 0.001)
@@ -916,7 +963,7 @@ int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int
 		}
 		fclose(fp);
 
-		for (int proID = 0; proID < nPros; proID++)
+		for (proID = 0; proID < nPros; proID++)
 		{
 			for (ii = 0; ii < 6; ii++)
 			{
@@ -924,6 +971,363 @@ int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int
 				WriteGridBinary(Fname, WarpingParas + (ii + 6 * proID)*length, width, height);
 			}
 		}
+	}
+
+	delete[]disparity;
+	delete[]CDepth;
+	delete[]cROI;
+	delete[]lpROI_calculated;
+	delete[]Img1;
+	delete[]Img2;
+	delete[]SparseCorres1;
+	delete[]SparseCorres2;
+	delete[]WarpingParas;
+
+	return 0;
+}
+int CamProMatching2(char *PATH, int nCams, int nPros, int frameID, int width, int height, int pwidth, int pheight, int nchannels, LKParameters LKArg, CPoint *ROI, bool CheckMatching = false, bool FlowVerification = false, double triThresh = 2.0, bool saveWarping = false, bool Simulation = false)
+{
+	//Double check checker size!!!
+	int ii, jj, kk, ll, camID, proID;
+	int length = width*height, plength = pwidth*pheight;
+
+	int  step = LKArg.step, hsubset = LKArg.hsubset;
+	int Incomplete_Subset_Handling = LKArg.Incomplete_Subset_Handling, Convergence_Criteria = LKArg.Convergence_Criteria, Analysis_Speed = LKArg.Analysis_Speed, DICAlgo = LKArg.DIC_Algo, InterpAlgo = LKArg.InterpAlgo;
+	double PSSDab_thresh = LKArg.PSSDab_thresh, Gsigma = LKArg.Gsigma;
+	int nSeedPoints = 5000; //should be enough
+
+	DevicesInfo DInfo(nCams, nPros);
+	if (!SetUpDevicesInfo(DInfo, PATH))
+	{
+		cout << "Cannot CamPro Info" << endl;
+		//return 1;
+	}
+	double ProEpipole[3];
+
+	//Load images
+	char *Img1 = new char[length*nchannels];
+	char *Img2 = new char[plength*nchannels];
+	bool *cROI = new bool[length];
+	bool *lpROI_calculated = new bool[length];
+
+	char Fname[100];
+	IplImage *view = 0;
+	CPoint2 *SparseCorres1 = new CPoint2[nSeedPoints];
+	CPoint2 *SparseCorres2 = new CPoint2[nSeedPoints];
+	CPoint2 *disparity = new CPoint2[length];
+	float *WarpingParas = 0;
+	float *CDepth = new float[length];
+
+	if (saveWarping)
+	{
+		WarpingParas = new float[length * 6 * nPros];
+		for (ii = 0; ii < 6 * nPros*length; ii++)
+			WarpingParas[ii] = 0.0f;
+	}
+
+ 	for (camID = 0; camID < nCams; camID++)
+	{
+#pragma omp critical
+		cout << "Run CamPro on frame " << frameID << " of Cam #" << camID + 1;
+
+		//Read camera image
+		sprintf(Fname, "%s/Image/C%d_%05d.png", PATH, camID + 1, frameID); view = cvLoadImage(Fname, nchannels == 1 ? 0 : 1);
+		if (view == NULL)
+		{
+			cout << "Cannot load " << Fname << endl;
+			return 2;
+		}
+		else
+		{
+			for (kk = 0; kk < nchannels; kk++)
+				for (jj = 0; jj < height; jj++)
+					for (ii = 0; ii < width; ii++)
+						Img1[ii + (height - 1 - jj)*width + kk*length] = view->imageData[nchannels*ii + nchannels*jj*width + kk];
+			cvReleaseImage(&view);
+		}
+
+		if (nPros == 2)
+			LKArg.checkZNCC = true;
+
+		for (int proID = 0; proID < nPros; proID++)
+		{
+#pragma omp critical
+			cout << " and Projector #" << proID + 1 << endl;
+			//Read projector image
+			sprintf(Fname, "%s/ProjectorPattern%d.png", PATH, proID + 1);  view = cvLoadImage(Fname, nchannels == 1 ? 0 : 1);
+			if (view == NULL)
+			{
+				cout << "Cannot load " << Fname << endl;
+				return 2;
+			}
+			else
+			{
+				for (kk = 0; kk < nchannels; kk++)
+					for (jj = 0; jj < pheight; jj++)
+						for (ii = 0; ii < pwidth; ii++)
+							Img2[ii + (pheight - 1 - jj)*pwidth + kk*plength] = view->imageData[nchannels*ii + nchannels*jj*pwidth + kk];
+				cvReleaseImage(&view);
+			}
+
+			//Load scale information
+			double CamProScale[10];
+			sprintf(Fname, "%s/CamProScale.txt", PATH);
+			FILE *fp = fopen(Fname, "r");
+			if (fp == NULL)
+			{
+				cout << "Cannot load " << Fname << endl;
+				return 3;
+			}
+			else
+			{
+				for (ii = 0; ii < nCams; ii++)
+				{
+					fscanf(fp, "%lf ", &CamProScale[ii]);
+					CamProScale[ii] = 1.0 / CamProScale[ii];
+				}
+				fclose(fp);
+			}
+
+			//Load seeds points
+			sprintf(Fname, "%s/Sparse/C%dP%d_%05d.txt", PATH, camID + 1, proID + 1, frameID);
+			fp = fopen(Fname, "r");
+			if (fp == NULL)
+			{
+				cout << "Cannot load " << Fname << endl;
+				return 3;
+			}
+			else
+			{
+				nSeedPoints = 0;
+				while (fscanf(fp, "%lf %lf ", &SparseCorres1[nSeedPoints].x, &SparseCorres1[nSeedPoints].y) != EOF)
+				{
+					SparseCorres1[nSeedPoints].y = SparseCorres1[nSeedPoints].y;
+					nSeedPoints++;
+				}
+				fclose(fp);
+
+				sprintf(Fname, "%s/Sparse/P%dC%d_%05d.txt", PATH, proID + 1, camID + 1, frameID); fp = fopen(Fname, "r");
+				if (fp == NULL)
+				{
+					cout << "Cannot load " << Fname << endl;
+					return 3;
+				}
+				else
+				{
+					for (ii = 0; ii < nSeedPoints; ii++)
+						fscanf(fp, "%lf %lf ", &SparseCorres2[ii].x, &SparseCorres2[ii].y);//Supreeth
+					fclose(fp);
+				}
+			}
+
+			//Customize the ROI
+			int maxX = 0, maxY = 0, minX = width, minY = height;
+			for (ii = 0; ii<nSeedPoints; ii++)
+			{
+				if (SparseCorres1[ii].x > maxX)
+					maxX = (int)SparseCorres1[ii].x;
+				else if (SparseCorres1[ii].x < minX)
+					minX = (int)SparseCorres1[ii].x;
+				if (SparseCorres1[ii].y > maxY)
+					maxY = (int)SparseCorres1[ii].y;
+				else if (SparseCorres1[ii].y < minY)
+					minY = (int)SparseCorres1[ii].y;
+			}
+			maxX = maxX>width - 2 ? maxX : maxX + 2;
+			minX = minX < 2 ? minX : minX - 2;
+			maxY = maxY > height - 2 ? maxY : maxY + 2;
+			minY = minY < 2 ? minY : minY - 2;
+
+			for (ii = 0; ii < length; ii++)
+				cROI[ii] = false;
+			if (ROI == NULL)
+				for (jj = minY; jj < maxY; jj++)
+					for (ii = minX; ii < maxX; ii++)
+						cROI[ii + jj*width] = true;
+			else
+				for (jj = ROI[0].y; jj < ROI[1].y; jj++)
+					for (ii = ROI[0].x; ii < ROI[1].x; ii++)
+						cROI[ii + jj*width] = true;
+
+			if (Simulation)
+			{
+				double *BlurImage = new double[length];
+				sprintf(Fname, "%s/Image/C%d_%05d.png", PATH, camID + 1, frameID);
+				view = cvLoadImage(Fname, 0);
+				if (!view)
+				{
+					cout << "Cannot load Images" << Fname << endl;
+					return 2;
+				}
+				for (jj = 0; jj < height; jj++)
+					for (ii = 0; ii < width; ii++)
+						BlurImage[ii + (height - 1 - jj)*width] = (double)((int)((unsigned char)view->imageData[nchannels*ii + jj*width]));
+				Gaussian_smooth_Double(BlurImage, BlurImage, height, width, 255.0, 2.0); //severely smooth out the image to determine the boundary
+
+				for (jj = 0; jj < height; jj++)
+					for (ii = 0; ii<width; ii++)
+						if (BlurImage[ii + jj*width] > 5.0)
+							cROI[ii + jj*width] = true;
+				delete[]BlurImage;
+			}
+
+			for (ii = 0; ii < length; ii++)
+			{
+				if (abs(WarpingParas[ii + 6 * proID*length]) + abs(WarpingParas[ii + (1 + 6 * proID)*length]) > 0.1)
+				{
+					lpROI_calculated[ii] = true; 	// 1 - Calculated, 0 - Other
+					disparity[ii].x = WarpingParas[ii + 6 * proID*length], disparity[ii].y = WarpingParas[ii + (1 + 6 * proID)*length];
+				}
+				else
+				{
+					lpROI_calculated[ii] = false; 	// 1 - Calculated, 0 - Other
+					disparity[ii].x = 0.0, disparity[ii].y = 0.0;
+				}
+			}
+
+			double Pmat[24], K[18], distortion[26];
+			if (proID == 0)
+			{
+				Pmat[0] = DInfo.K[0], Pmat[1] = DInfo.K[1], Pmat[2] = DInfo.K[2], Pmat[3] = 0.0,
+					Pmat[4] = DInfo.K[3], Pmat[5] = DInfo.K[4], Pmat[6] = DInfo.K[5], Pmat[7] = 0.0,
+					Pmat[8] = DInfo.K[6], Pmat[9] = DInfo.K[7], Pmat[10] = DInfo.K[8], Pmat[11] = 0.0;
+			}
+			else
+			{
+				Pmat[0] = DInfo.P[12 * (proID - 1)], Pmat[1] = DInfo.P[12 * (proID - 1) + 1], Pmat[2] = DInfo.P[12 * (proID - 1) + 2], Pmat[3] = DInfo.P[12 * (proID - 1) + 3],
+					Pmat[4] = DInfo.P[12 * (proID - 1) + 4], Pmat[5] = DInfo.P[12 * (proID - 1) + 5], Pmat[6] = DInfo.P[12 * (proID - 1) + 6], Pmat[7] = DInfo.P[12 * (proID - 1) + 7],
+					Pmat[8] = DInfo.P[12 * (proID - 1) + 8], Pmat[9] = DInfo.P[12 * (proID - 1) + 9], Pmat[10] = DInfo.P[12 * (proID - 1) + 10], Pmat[11] = DInfo.P[12 * (proID - 1) + 11];
+			}
+			for (ii = 0; ii < 12; ii++)
+				Pmat[12 + ii] = DInfo.P[12 * (camID - 1 + nPros) + ii];
+			for (ii = 0; ii < 9; ii++)
+				K[ii] = DInfo.K[9 * proID + ii], K[ii + 9] = DInfo.K[9 * (camID + nPros) + ii];
+			for (ii = 0; ii < 13; ii++)
+				distortion[ii] = DInfo.distortion[13 * proID + ii], distortion[13 + ii] = DInfo.distortion[13 * (camID + nPros) + ii];
+
+			GreedyMatching(Img1, Img2, disparity, lpROI_calculated, cROI, SparseCorres1, SparseCorres2, nSeedPoints, LKArg, nchannels, width, height, pwidth, pheight, CamProScale[camID], ProEpipole, WarpingParas + 6 * proID*length, Pmat, K, distortion, triThresh);
+			
+			int maxdisparity = 70;
+			double direction[2] = { 1, 0 };
+			double *SImg1 = new double[width*height*nchannels];
+			double *SImg2 = new double[pwidth*pheight*nchannels];
+			double *Img2Para = new double[pwidth*pheight*nchannels];
+			
+			if (Gsigma > 0.0)
+			{
+				for (kk = 0; kk < nchannels; kk++)
+				{
+					Gaussian_smooth(Img1 + kk*width*height, SImg1 + kk*width*height, height, width, 255.0, Gsigma/sqrt(2));
+					Gaussian_smooth(Img2 + kk*pwidth*pheight, SImg2 + kk*pwidth*pheight, pheight, pwidth, 255.0, Gsigma*sqrt(2));
+				}
+			}
+			else
+			{
+				for (kk = 0; kk < nchannels; kk++)
+				{
+					for (ii = 0; ii < width*height; ii++)
+						SImg1[ii + kk*width*height] = (double)((int)((unsigned char)(Img1[ii + kk*width*height])));
+					for (ii = 0; ii < pwidth*pheight; ii++)
+						SImg2[ii + pwidth*pheight*kk] = (double)((int)((unsigned char)(Img2[ii + kk*pwidth*pheight])));
+				}
+			}
+			for (kk = 0; kk < nchannels; kk++)
+				Generate_Para_Spline(SImg2 + kk*pwidth*pheight, Img2Para + kk*pwidth*pheight, pwidth, pheight, LKArg.InterpAlgo);
+
+			double *tPatch = new double[2*nchannels*(LKArg.hsubset * 2 + 1)*(LKArg.hsubset * 2 + 1)],
+				*tZNCC = new double[2 * (LKArg.hsubset * 2 + 1)*(LKArg.hsubset * 2 + 1)*nchannels],
+				*Znssd_reqd = new double[6 * (2 * hsubset + 1)*(2 * hsubset + 1)*nchannels];
+
+#pragma omp parallel for
+			for (int jj = ROI[0].y; jj < ROI[1].y; jj++)
+			{
+				for (int ii = ROI[0].x; ii < ROI[1].x; ii++)
+				{
+					if (abs(WarpingParas[ii + jj*width]) + abs(WarpingParas[ii + jj*width + length]) > 0.1)
+						continue;
+					CPoint2 From(ii, jj), Target(ii, jj);
+					double score = BruteforceMatchingEpipolar(From, Target, direction, maxdisparity, SImg1, SImg2, Img2Para, nchannels, width, height, pwidth, pheight, LKArg, tPatch, tZNCC, Znssd_reqd);
+					if (score > LKArg.ZNCCThreshold - 0.1)
+					{
+						WarpingParas[ii + jj*width] = Target.x - From.x;
+						WarpingParas[ii + jj*width + length] = Target.y - From.y;
+					}
+				}
+			}
+
+			delete[]SImg1, delete[]SImg2, delete[]Img2Para;
+			delete[]tPatch, delete []tZNCC, delete []Znssd_reqd;
+
+			if (FlowVerification)
+			{
+				//Load illum flow to verify the pure illum regions
+				double start = omp_get_wtime();
+				char Fname1[200], Fname2[200];
+				float *IllumFlow = new float[2 * length];
+				sprintf(Fname1, "%s/Flow/FX1_%05d.dat", PATH, frameID), sprintf(Fname2, "%s/Flow/FY1_%05d.dat", PATH, frameID);
+				if (!ReadFlowBinary(Fname1, Fname2, IllumFlow, IllumFlow + length, width, height))
+				{
+					cout << "Cannot load illumination flow for frame" << frameID << endl;
+					delete[]IllumFlow;
+					return 1;
+				}
+				cout << "Loaded illumination flow in " << omp_get_wtime() - start << endl;
+
+				//Clean campro warping
+				for (jj = 0; jj < length; jj++)
+					if (abs(IllumFlow[jj]) + abs(IllumFlow[jj + length]) < 0.01)
+						for (ii = 0; ii < 6; ii++)
+							WarpingParas[jj + (ii + proID * 6)*length] = 0.0;
+
+				delete[]IllumFlow;
+			}
+		}
+
+		for (proID = 0; proID < nPros; proID++)
+		{
+			for (ii = 0; ii < 2; ii++)//supreeth
+			{
+				sprintf(Fname, "%s/Results/CamPro/C%dP%dp%d_%05d.dat", PATH, camID + 1, proID + 1, ii, frameID);
+				WriteGridBinary(Fname, WarpingParas + (ii + 6 * proID)*length, width, height);
+			}
+		}
+
+		double S[3], xx, yy;
+		unsigned char *LuminanceImg = new unsigned char[length*nchannels];
+		double *ParaIllumSource = new double[length];
+		Generate_Para_Spline(Img2, ParaIllumSource, width, height, InterpAlgo);
+
+		for (jj = 0; jj < height; jj++)
+		{
+			for (ii = 0; ii < width; ii++)
+			{
+				LuminanceImg[ii + jj*width] = (unsigned char)(0);
+				if (!cROI[ii + jj*width])
+					for (kk = 0; kk < nchannels; kk++)
+						LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(0);
+
+				if (abs(WarpingParas[ii + jj*width]) + abs(WarpingParas[ii + jj*width + length]) > 0.01)
+				{
+					xx = WarpingParas[ii + jj*width] + ii, yy = WarpingParas[ii + jj*width + length] + jj;
+					if (xx<0.0 || xx > pwidth - 1 || yy < 0.0 || yy>pheight - 1)
+						continue;
+					for (kk = 0; kk<nchannels; kk++)
+					{
+						Get_Value_Spline(ParaIllumSource, pwidth, pheight, xx, yy, S, -1, InterpAlgo);
+						if (S[0] > 255.0)
+							S[0] = 255.0;
+						else if (S[0] < 0.0)
+							S[0] = 0.0;
+						LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(int)(S[0] + 0.5);
+					}
+				}
+			}
+		}
+		sprintf(Fname, "%s/Results/swL_%05d.png", PATH, frameID);
+		printf("%s\n", Fname);
+		SaveDataToImage(Fname, LuminanceImg, width, height);
+		delete[]ParaIllumSource;
+		delete[]LuminanceImg;
 	}
 
 	delete[]disparity;
@@ -1327,7 +1731,7 @@ int FlowMatching(char *PATH, int nCams, int nPros, int camID, int frameID, int f
 	bool *lpROI_calculated = new bool[length];
 	char Fname[100], Fname1[200], Fname2[200];
 
-	sprintf(Fname, "%s/Image/RandomTextureMap/C%d_%05d.png", PATH, camID, 1);
+	sprintf(Fname, "%s/Image/C%d_%05d.png", PATH, camID, 1, frameID);
 	Mat cvImg = imread(Fname, nchannels == 1 ? 0 : 1);
 	if (!cvImg.data)
 	{
@@ -1339,7 +1743,7 @@ int FlowMatching(char *PATH, int nCams, int nPros, int camID, int frameID, int f
 			for (kk = 0; kk < nchannels; kk++)
 				Img1[ii + (height - 1 - jj)*width + length*kk] = (char)cvImg.data[nchannels*ii + kk + jj*nchannels*width];
 
-	sprintf(Fname, "%s/Image/RandomTextureMap/C%d_%05d.png", PATH, camID, frameID + frameJump);
+	sprintf(Fname, "%s/ProjectorPattern.png", PATH);
 	cvImg = imread(Fname, nchannels == 1 ? 0 : 1);
 	if (!cvImg.data)
 	{
@@ -1386,7 +1790,8 @@ int FlowMatching(char *PATH, int nCams, int nPros, int camID, int frameID, int f
 
 	CPoint2 *SparseCorres2 = new CPoint2[nSeedPoints];
 	if (signature == 0)
-		sprintf(Fname, "%s/Sparse/C%d_%05d.txt", PATH, camID, frameID + frameJump);
+		//sprintf(Fname, "%s/Sparse/C%d_%05d.txt", PATH, camID, frameID + frameJump);
+		sprintf(Fname, "%s/Sparse/P1_%05d.txt", PATH, frameID);
 	else
 		sprintf(Fname, "%s/Sparse/C%d_%05d_%d.txt", PATH, camID, frameID + frameJump, signature);
 	fp = fopen(Fname, "r");
@@ -1416,7 +1821,7 @@ int FlowMatching(char *PATH, int nCams, int nPros, int camID, int frameID, int f
 				ROI[ii + jj*width] = true;
 
 		for (ii = 0; ii < length; ii++)
-			flow[ii].x = 0.0, flow[ii].y = 0.0;
+			flow[ii].x = 0.0, flow[ii].y = 0.0, WarpingsPara[ii] = 0, WarpingsPara[ii + length] = 0.0;
 		if (GreedyMatching(Img1, Img2, flow, lpROI_calculated, ROI, SparseCorres1, SparseCorres2, nSeedPoints, LKArg, nchannels, width, height, width, height, 1.0, Epipole, WarpingsPara) == 1)
 			return 1;
 
@@ -1430,8 +1835,8 @@ int FlowMatching(char *PATH, int nCams, int nPros, int camID, int frameID, int f
 		if (saveWarping)
 			for (ii = 0; ii < 4; ii++)
 			{
-			sprintf(Fname, "%s/Flow/F%dp%d_%05d.dat", PATH, camID, ii, frameID);
-			WriteGridBinary(Fname, WarpingsPara + (ii + 2)*length, width, height);
+				sprintf(Fname, "%s/Flow/F%dp%d_%05d.dat", PATH, camID, ii, frameID);
+				WriteGridBinary(Fname, WarpingsPara + (ii + 2)*length, width, height);
 			}
 	}
 	else//Backward flow
@@ -1461,8 +1866,8 @@ int FlowMatching(char *PATH, int nCams, int nPros, int camID, int frameID, int f
 		if (saveWarping)
 			for (ii = 0; ii < 4; ii++)
 			{
-			sprintf(Fname, "%s/Flow/R%dp%d_%05d.dat", PATH, camID, ii, frameID + frameJump);
-			WriteGridBinary(Fname, WarpingsPara + (ii + 2)*length, width, height);
+				sprintf(Fname, "%s/Flow/R%dp%d_%05d.dat", PATH, camID, ii, frameID + frameJump);
+				WriteGridBinary(Fname, WarpingsPara + (ii + 2)*length, width, height);
 			}
 	}
 
@@ -2125,16 +2530,16 @@ int SVSR_Driver(int frameID, IlluminationFlowImages &IlluminationImages, LKParam
 				for (jj = 0; jj < height; jj++)
 					for (ii = 0; ii < width; ii++)
 					{
-					if (abs(TexSep[ii + jj*width]) > 0.01 && abs(TexSep[ii + jj*width + length]) > 0.01 && abs(TexSep[ii + jj*width]) < 40 && abs(TexSep[ii + jj*width + length]) < 40)
-					{
+						if (abs(TexSep[ii + jj*width]) > 0.01 && abs(TexSep[ii + jj*width + length]) > 0.01 && abs(TexSep[ii + jj*width]) < 40 && abs(TexSep[ii + jj*width + length]) < 40)
+						{
 
-						x = (int)IllumSep[ii + jj*width] + ii, y = (int)IllumSep[ii + jj*width + length] + jj;
-						//TextureMask[x+y*pwidth] = false;
-						TextureMask[2 * x + 2 * y * 2 * pwidth + kk*plength * 4] = false;
-						TextureMask[2 * x + 1 + 2 * y * 2 * pwidth + kk*plength * 4] = false;
-						TextureMask[2 * x + (2 * y + 1) * 2 * pwidth + kk*plength * 4] = false;
-						TextureMask[2 * x + 1 + (2 * y + 1) * 2 * pwidth + kk*plength * 4] = false;
-					}
+							x = (int)IllumSep[ii + jj*width] + ii, y = (int)IllumSep[ii + jj*width + length] + jj;
+							//TextureMask[x+y*pwidth] = false;
+							TextureMask[2 * x + 2 * y * 2 * pwidth + kk*plength * 4] = false;
+							TextureMask[2 * x + 1 + 2 * y * 2 * pwidth + kk*plength * 4] = false;
+							TextureMask[2 * x + (2 * y + 1) * 2 * pwidth + kk*plength * 4] = false;
+							TextureMask[2 * x + 1 + (2 * y + 1) * 2 * pwidth + kk*plength * 4] = false;
+						}
 					}
 			}
 		}
@@ -2733,8 +3138,8 @@ int ConvertStereoDepthToProjector(char *PATH, int frameID, int nframes, int nCam
 		for (ii = 0; ii < 2 * pwidth; ii++)
 			if (abs(StereoDepth[ii + jj * 2 * pwidth]) > 1.0)
 			{
-			double	rayDirectX = DInfo.iK[0] * ii / 2 + DInfo.iK[1] * jj / 2 + DInfo.iK[2], rayDirectY = DInfo.iK[4] * jj / 2 + DInfo.iK[5];
-			fprintf(fp, "%.3f %.3f %.3f\n", rayDirectX*StereoDepth[ii + jj * 2 * pwidth], rayDirectY*StereoDepth[ii + jj * 2 * pwidth], StereoDepth[ii + jj * 2 * pwidth]);
+				double	rayDirectX = DInfo.iK[0] * ii / 2 + DInfo.iK[1] * jj / 2 + DInfo.iK[2], rayDirectY = DInfo.iK[4] * jj / 2 + DInfo.iK[5];
+				fprintf(fp, "%.3f %.3f %.3f\n", rayDirectX*StereoDepth[ii + jj * 2 * pwidth], rayDirectY*StereoDepth[ii + jj * 2 * pwidth], StereoDepth[ii + jj * 2 * pwidth]);
 			}
 	}
 	fclose(fp);
@@ -2799,12 +3204,12 @@ int CompareWithGroundTruthFlow(char *PATH, int frameID, int nchannels, int width
 			for (jj = 0; jj < height; jj++)
 				for (ii = 0; ii < width; ii++)
 				{
-				intensity = (double)((int)((unsigned char)view->imageData[ii + jj*width])) + gaussian_noise(0, noise);
-				if (intensity > 255.0)
-					intensity = 255.0;
-				else if (intensity < 0.0)
-					intensity = 0.0;
-				Fimgs.Img[ii + (height - 1 - jj)*width + (kk*nframes + ll)*length] = intensity;
+					intensity = (double)((int)((unsigned char)view->imageData[ii + jj*width])) + gaussian_noise(0, noise);
+					if (intensity > 255.0)
+						intensity = 255.0;
+					else if (intensity < 0.0)
+						intensity = 0.0;
+					Fimgs.Img[ii + (height - 1 - jj)*width + (kk*nframes + ll)*length] = intensity;
 				}
 			cvReleaseImage(&view);
 
@@ -3499,7 +3904,7 @@ int Convert3DPtoC(char *PATH, char *PATH2, int frameID, int nCams, int deviceID,
 void ProjectBinaryCheckRandom(char *PATH, int squareDistance, int squareSize)
 {
 	int ii, jj, kk, ll;
-	char Fname[200]; sprintf(Fname, "%s/BPattern.png", PATH);
+	char Fname[200]; sprintf(Fname, "%s/Pattern2.png", PATH);
 	IplImage *Random = cvLoadImage(Fname, 0);
 	int width = Random->width, height = Random->height;
 	cvFlip(Random);
@@ -3558,7 +3963,7 @@ void ProjectBinaryCheckRandom(char *PATH, int squareDistance, int squareSize)
 		}
 	}
 
-	sprintf(Fname, "%s/ProjectorPattern2.png", PATH);
+	sprintf(Fname, "%s/ProjectorPattern.png", PATH);
 	cvSaveImage(Fname, Random);
 	//cvShowImage("X", Random);
 	//cvMoveWindow("X", 1280*0, 0);
@@ -3693,7 +4098,7 @@ int DetectCorners(char *path, char *path2)
 int IllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &IlluminationImages, int proID, LKParameters LKArg, int frameID, int mode, int TextureColor, CPoint *ROI = 0, bool Simulation = false)
 {
 	//mode 0: interleaving, mode 1: known texture in the beginging
-	const int nthreads = 2;
+	const int nthreads = 4;
 	if (mode == 0)
 		cout << "Run separation with interleaving sequence." << endl;
 	else
@@ -3865,8 +4270,8 @@ int IllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illumina
 						for (nn = -kk; nn <= kk; nn++)
 							if (abs(ILWarpingParas[(ii + nn) + (jj + mm)*width]) + abs(ILWarpingParas[(ii + nn) + (jj + mm)*width + length]) > 0.001)
 							{
-					PrecomSearchR[ii + jj*width] = LKArg.hsubset - 2; //search more at the boundary
-					flag = true; break;
+								PrecomSearchR[ii + jj*width] = LKArg.hsubset - 2; //search more at the boundary
+								flag = true; break;
 							}
 			}
 			if (!flag)
@@ -4572,8 +4977,8 @@ int IllumSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illumination
 							for (nn = -kk; nn <= kk; nn++)
 								if (abs(ILWarpingParas[(ii + nn) + (jj + mm)*width + 6 * proID*length]) + abs(ILWarpingParas[(ii + nn) + (jj + mm)*width + (1 + 6 * proID)*length]) > 0.001)
 								{
-					PrecomSearchR[ii + jj*width] = LKArg.hsubset - 2; //search more at the boundary
-					flag = true; break;
+									PrecomSearchR[ii + jj*width] = LKArg.hsubset - 2; //search more at the boundary
+									flag = true; break;
 								}
 			}
 			if (!flag)
@@ -4729,7 +5134,7 @@ int IllumSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illumination
 }
 int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &IlluminationImages, LKParameters LKArg, int frameID, int mode, CPoint *ROI = 0, bool restart = true, bool color = false, bool Simulation = false)
 {
-	const int nthreads = 1;
+	const int nthreads = 4;
 	//mode 0: interleaving, mode 1: known texture in the beginging
 	if (mode == 0)
 		cout << "Run separation with interleaving sequence." << endl;
@@ -4965,7 +5370,7 @@ int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illum
 	start = omp_get_wtime();
 	for (jj = 0; jj < nPros; jj++)
 	{
-		for (ii = 0; ii < 0; ii++)
+		for (ii = 0; ii < 6; ii++)
 		{
 			sprintf(Fname, "%s/Results/CamPro/C1P%dp%d_%05d.dat", PATH, jj + 1, ii, frameID);
 			if (!ReadGridBinary(Fname, ILWarpingParas + (ii + 6 * jj)*length, width, height))
@@ -4987,7 +5392,7 @@ int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illum
 		{
 			start = omp_get_wtime();
 			previousTWarpingParas = new float[6 * length];
-			for (ii = 0; ii < 0; ii++)
+			for (ii = 0; ii < 6; ii++)
 			{
 				sprintf(Fname, "%s/Results/Sep/%05d_C1TSp%d.dat", PATH, frameID - 1, ii);
 				if (!ReadGridBinary(Fname, previousTWarpingParas + ii*length, width, height))
@@ -5044,8 +5449,8 @@ int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illum
 								for (nn = -kk; nn <= kk; nn++)
 									if (abs(ILWarpingParas[(ii + nn) + (jj + mm)*width + 6 * ll*length]) + abs(ILWarpingParas[(ii + nn) + (jj + mm)*width + (1 + 6 * ll)*length]) > 0.001)
 									{
-							PrecomSearchR[ii + jj*width] = kk + 2; //search more at the boundary within a radius of LKArg.hsubset-2 pixels
-							flag = true; break;
+										PrecomSearchR[ii + jj*width] = kk + 2; //search more at the boundary within a radius of LKArg.hsubset-2 pixels
+										flag = true; break;
 									}
 					}
 				}
@@ -5056,8 +5461,8 @@ int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illum
 		WriteGridBinary(Fname, PrecomSearchR, width, height);
 		cout << "Created SearchR in " << omp_get_wtime() - start << endl;
 	}
-	else
-		cout << "Loaded SearchR in " << omp_get_wtime() - start << endl;
+	//else
+	//cout << "Loaded SearchR in " << omp_get_wtime() - start << endl;
 
 	//Check if precomputed warping parameters are available.
 	bool precomputedAvail = false, breakflag = false;
@@ -5066,7 +5471,7 @@ int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illum
 	start = omp_get_wtime();
 	for (kk = 0; kk < nPros && !breakflag; kk++)
 	{
-		for (ll = 0; ll < 2; ll++)
+		for (ll = 0; ll < 6; ll++)
 		{
 			sprintf(Fname, "%s/Results/Sep/%05d_C1P%dp%d.dat", PATH, frameID, kk + 1, ll);
 			precomputedAvail = ReadGridBinary(Fname, sILWarpingParas + (ll + 6 * kk)*length, width, height);
@@ -5083,14 +5488,14 @@ int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illum
 		for (jj = 0; jj < length; jj++)
 		{
 			for (ii = 0; ii < nPros; ii++)
-				for (ll = 0; ll < 2; ll++)
+				for (ll = 0; ll < 6; ll++)
 					if (abs(ILWarpingParas[jj + (ll + 6 * ii)*length]) < 0.001)//there is case when you use small ROI for procam matching and then expand it after sepration finishes
 						ILWarpingParas[jj + (ll + 6 * ii)*length] = sILWarpingParas[jj + (ll + 6 * ii)*length];
 		}
 
 		if (mode < 2)
 		{
-			for (ll = 0; ll < 0; ll++)
+			for (ll = 0; ll < 6; ll++)
 			{
 				sprintf(Fname, "%s/Results/Sep/%05d_C1TSp%d.dat", PATH, frameID, ll);
 				precomputedAvail = ReadGridBinary(Fname, sTWarpingParas + ll*length, width, height);
@@ -5108,7 +5513,7 @@ int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illum
 						TWarpingParas[jj + ll*length] = sTWarpingParas[jj + ll*length];
 			}
 
-			for (ll = 0; ll < 0; ll++)//2Ilums+text
+			for (ll = 0; ll < 5; ll++)//2Ilums+text
 			{
 				sprintf(Fname, "%s/Results/Sep/%05d_C1PA_%d.dat", PATH, frameID, ll);
 				if (!ReadGridBinary(Fname, PhotoAdj + ll*length, width, height))
@@ -5199,8 +5604,8 @@ int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illum
 				for (ii = sROI[2 * kk].x; ii < sROI[2 * kk + 1].x; ii++)
 					scROI[ii + jj*width + kk*length] = cROI[ii + jj*width];
 		}
-		int mapSeed[] = { 1, 5, 4 };
-		for (kk = 0; kk < 3; kk++)
+		int mapSeed[] = { 4 };
+		for (kk = 0; kk < 1; kk++)
 		{
 			for (ll = 0; ll < LKArg.npass2; ll++)
 			{
@@ -5212,17 +5617,17 @@ int TwoIllumTextSepDriver(char *PATH, char *TPATH, IlluminationFlowImages &Illum
 					TwoIllumTextSeperation(frameID, TPATH, IlluminationImages, SourceTexture, ParaSourceTexture, SSIG, DInfo, ILWarpingParas, TWarpingParas, PhotoAdj, previousTWarpingParas, SeedType, PrecomSearchR, LKArg, mode, scROI + ii*length, ii, mapSeed[kk]);
 				}
 			}
-				//LKArg.hsubset -= 2;
+			//LKArg.hsubset -= 2;
 			}
 		}
 		delete[]scROI;
 	}
 	else
 	{
-		int mapSeed[] = { 1, 5, 4 };
+		int mapSeed[] = { 4 };
 		for (ll = 0; ll < LKArg.npass2; ll++)
 		{
-			for (kk = 0; kk < 3; kk++)
+			for (kk = 0; kk < 1; kk++)
 				TwoIllumTextSeperation(frameID, TPATH, IlluminationImages, SourceTexture, ParaSourceTexture, SSIG, DInfo, ILWarpingParas, TWarpingParas, PhotoAdj, previousTWarpingParas, SeedType, PrecomSearchR, LKArg, mode, cROI, 0, mapSeed[kk]);
 			//LKArg.hsubset -= 2;
 		}
@@ -5468,26 +5873,39 @@ int SURFMatching(char *Fname1, char *Fname2, bool ShowImage = false, int signatu
 	Mat img_matches;
 	drawMatches(img_1, keypoints_1, img_2, keypoints_2, good_matches, img_matches, Scalar::all(-1), Scalar::all(-1), vector<char>(), DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
 
-	//if (ShowImage)
+	if (ShowImage)
 	{
 		namedWindow("Good Matches", WINDOW_AUTOSIZE);
 		imshow("Good Matches", img_matches);
-		//imwrite("C:/temp/x.png", img_matches);
 		waitKey(0);
 	}
-	if (signature == 0)
+
+
+	/*if (signature == 0) //Supreeth
 		sprintf(Fname, "%s.txt", Fname1);
-	else
+		else
 		sprintf(Fname, "%s_%d.txt", Fname1, signature);
+		FILE* fp = fopen(Fname, "w+");
+		for (int i = 0; i < (int)good_matches.size(); i++)
+		fprintf(fp, "%.2f %2.f \n", keypoints_1.at(good_matches[i].queryIdx).pt.x - 1, 1.0*img_1.rows - 1 - keypoints_1.at(good_matches[i].queryIdx).pt.y);
+		fclose(fp);
+
+		if (signature == 0)
+		sprintf(Fname, "%s.txt", Fname2);
+		else
+		sprintf(Fname, "%s_%d.txt", Fname2, signature);
+		fp = fopen(Fname, "w+");
+		for (int i = 0; i < (int)good_matches.size(); i++)
+		fprintf(fp, "%.2f %2.f \n", keypoints_2.at(good_matches[i].trainIdx).pt.x - 1, 1.0*img_1.rows - 1 - keypoints_2.at(good_matches[i].trainIdx).pt.y);
+		fclose(fp);*/
+
+	sprintf(Fname, "C:/temp/S/Sparse/C1P1_%05d.txt", signature);
 	FILE* fp = fopen(Fname, "w+");
 	for (int i = 0; i < (int)good_matches.size(); i++)
 		fprintf(fp, "%.2f %2.f \n", keypoints_1.at(good_matches[i].queryIdx).pt.x - 1, 1.0*img_1.rows - 1 - keypoints_1.at(good_matches[i].queryIdx).pt.y);
 	fclose(fp);
 
-	if (signature == 0)
-		sprintf(Fname, "%s.txt", Fname2);
-	else
-		sprintf(Fname, "%s_%d.txt", Fname2, signature);
+	sprintf(Fname, "C:/temp/S/Sparse/P1C1_%05d.txt", signature);
 	fp = fopen(Fname, "w+");
 	for (int i = 0; i < (int)good_matches.size(); i++)
 		fprintf(fp, "%.2f %2.f \n", keypoints_2.at(good_matches[i].trainIdx).pt.x - 1, 1.0*img_1.rows - 1 - keypoints_2.at(good_matches[i].trainIdx).pt.y);
@@ -5868,24 +6286,100 @@ int MergeSeedType(char *PATH, int nPros, int frameID)
 
 	return 0;
 }
+int DeleteSeedType(char *PATH)
+{
+	char Fname[200];
+	int width = 1920, height = 1080, length = width*height;
+	int *SeedType = new int[length]; //0: No touched point, 1: Illum 1, 2: Illum 2, 3, Illum1+Illum2, 4: Illum1+text, 5: Illum2+text, 6: Illums+text
+	float *ILWarpingParas = new float[6 * length];
+	float *TWarpingParas = new float[2 * length];
+
+	for (int frameID = 62; frameID < 241; frameID++)
+	{
+		sprintf(Fname, "%s/Results/Sep/%05d_SeedType.dat", PATH, frameID);
+		if (!ReadGridBinary(Fname, SeedType, width, height))
+			continue;
+
+		for (int ii = 0; ii < 2; ii++)
+		{
+			sprintf(Fname, "%s/Results/Sep/%05d_C1P%dp%d.dat", PATH, frameID, 1, ii);
+			ReadGridBinary(Fname, ILWarpingParas + ii*length, width, height);
+		}
+		for (int ii = 0; ii < 2; ii++)
+		{
+			sprintf(Fname, "%s/Results/Sep/%05d_C1TSp%d.dat", PATH, frameID, ii);
+			ReadGridBinary(Fname, TWarpingParas + ii*length, width, height);
+		}
+
+		for (int ii = 0; ii < length; ii++)
+		{
+			if (SeedType[ii] == 1)
+				ILWarpingParas[ii] = 0.0, ILWarpingParas[ii + length] = 0.0, TWarpingParas[ii] = 0.0, TWarpingParas[ii + length] = 0.0, SeedType[ii] = 0;
+		}
+
+		sprintf(Fname, "%s/Results/Sep/%05d_SeedType.dat", PATH, frameID);
+		WriteGridBinary(Fname, SeedType, width, height);
+		for (int ii = 0; ii < 2; ii++)
+		{
+			sprintf(Fname, "%s/Results/Sep/%05d_C1P%dp%d.dat", PATH, frameID, 1, ii);
+			WriteGridBinary(Fname, ILWarpingParas + ii*length, width, height);
+		}
+		for (int ii = 0; ii < 2; ii++)
+		{
+			sprintf(Fname, "%s/Results/Sep/%05d_C1TSp%d.dat", PATH, frameID, ii);
+			WriteGridBinary(Fname, TWarpingParas + ii*length, width, height);
+		}
+	}
+	return 0;
+
+}
 int main(int argc, char* argv[])
 {
-	char DataPATH[] = "C:/Data/PAMI14/Real/Flags2";
-	char TDataPATH[] = "C:/Data/PAMI14/Real/Flags2/Results/Sep";
+	{
+		vector<Point2f> prePt, nPt;
+		prePt.push_back(Point2f(1065.31, 740.36)), prePt.push_back(Point2f(1077.23, 760.63)), prePt.push_back(Point2f(1084.64, 727.66));
+		Mat img1 = imread("c:/temp/1.png", 0);
+		Mat img2 = imread("c:/temp/2.png", 0);
+
+		int tempPyramidSize[] = { 16, 21, 31 };
+		for (int ii = 0; ii < 3; ii++)
+		{
+			vector<uchar> status;
+			vector<float> err;
+			calcOpticalFlowPyrLK(img1, img2, prePt, nPt, status, err, cvSize(tempPyramidSize[ii], tempPyramidSize[ii]), 2);
+			int b = 0;
+		}
+		int a = 0;
+		return 0;
+	}
+
+	//VisTrack("C:/temp/X");
+	//TrackOpenCVLK(1, 207, "C:/temp/X");
+	//ProjectBinaryCheckRandom("C:/temp", 32, 6);
+	//SURFMatching("C:/temp/oneshot_pattern", "C:/temp/oneshot_rect_gain", true);
+	char DataPATH[] = "C:/temp/S";
+	char TDataPATH[] = "../../mnt";
 
 	int mode = atoi(argv[1]);
 	bool SimulationMode = false;
 
-	int width = 1920, height = 1080, pwidth = 1280, pheight = 800, nCams = 1, nPros = 2, nchannels = 1, nframes = 2, frameJump = 1;
+	int width = 800, height = 600, pwidth = 800, pheight = 600, nCams = 1, nPros = 1, nchannels = 1, nframes = 2, frameJump = 1;
 	CPoint ROI[2]; //ROI[0].x = 200, ROI[0].y = height - 980, ROI[1].x = 1350, ROI[1].y = height - 150;
 	//ROI[0].x = 100, ROI[0].y = height-1000, ROI[1].x = 1800, ROI[1].y = height-20;
-	ROI[0].x = 480, ROI[0].y = 50, ROI[1].x = 1300, ROI[1].y = height - 50;
-	//ROI[0].x = 50, ROI[0].y = 50, ROI[1].x = width - 50, ROI[1].y = height - 50;
+	//ROI[0].x = 250, ROI[0].y = 50, ROI[1].x = 1600, ROI[1].y = height - 50;
+	ROI[0].x = 180, ROI[0].y = 100, ROI[1].x = 760, ROI[1].y = height - 170;
 
 	LKParameters LKArg;
 	LKArg.step = 1, LKArg.DisplacementThresh = 30, LKArg.DIC_Algo = 3, LKArg.InterpAlgo = 1, LKArg.EpipEnforce = 0;
 	LKArg.Incomplete_Subset_Handling = 0, LKArg.Convergence_Criteria = 0, LKArg.Analysis_Speed = 0, LKArg.IterMax = 15;
-	LKArg.Gsigma = 1.0, LKArg.ProjectorGsigma = LKArg.Gsigma, LKArg.ssigThresh = 30.0;
+	LKArg.Gsigma = 1.0, LKArg.ProjectorGsigma = LKArg.Gsigma, LKArg.ssigThresh = 1.0;
+
+	/*int frameID = 370;
+	char Fname1[200], Fname2[200];
+	sprintf(Fname1, "%s/Image/C1_%05d", DataPATH, frameID);
+	sprintf(Fname2, "%s/ProjectorPattern1", DataPATH);
+	SURFMatching(Fname1, Fname2, true, frameID);
+	return 0;*/
 
 	if (mode == 0)
 	{
@@ -6035,11 +6529,12 @@ int main(int argc, char* argv[])
 		bool flowVerification = false;
 		double SR = atof(argv[2]);
 		int procam = atoi(argv[3]), startID = atoi(argv[4]), stopID = atoi(argv[5]);
-		//double SR = 1.0; int procam = 0, startID = 2, stopID = 2;
+		//double SR = 1.0; int procam = 0, startID = 32, stopID = 32;
 
 		cout << "From: " << startID << " To: " << stopID << " with SR: " << SR << endl;
 
-		LKArg.hsubset = 7, LKArg.PSSDab_thresh = 0.03, LKArg.ZNCCThreshold = 0.91;
+		LKArg.DIC_Algo = 0,
+			LKArg.hsubset = 9, LKArg.PSSDab_thresh = .05, LKArg.ZNCCThreshold = .855;
 		bool saveWarping = 1;
 		double triThresh = 2.0;
 
@@ -6055,7 +6550,7 @@ int main(int argc, char* argv[])
 				if (procam == 1)
 					status = ProCamMatching(DataPATH, nCams, frameID, 1, width, height, pwidth, pheight, nchannels, LKArg);
 				else
-					status = CamProMatching(DataPATH, nCams, nPros, frameID, width, height, pwidth, pheight, nchannels, LKArg, ROI, false, flowVerification, triThresh, saveWarping, SimulationMode);
+					status = CamProMatching2(DataPATH, nCams, nPros, frameID, width, height, pwidth, pheight, nchannels, LKArg, ROI, false, flowVerification, triThresh, saveWarping, SimulationMode);
 			}
 			else
 				status = SProCamMatching(DataPATH, nCams, frameID, width, height, pwidth, pheight, nchannels, LKArg, SR);
@@ -6068,17 +6563,17 @@ int main(int argc, char* argv[])
 			colorTexture = atoi(argv[3]), startID = atoi(argv[4]), stopID = atoi(argv[5]);
 		//int SepMode = 1, colorTexture = 1, startID = 32, stopID = 32;
 
-		LKArg.DIC_Algo = 3, LKArg.step = 1, LKArg.hsubset = 10, LKArg.npass = 1, LKArg.npass2 = 1, LKArg.searchRangeScale = 3, LKArg.searchRangeScale2 = 6, LKArg.searchRange = 8;
-		LKArg.PSSDab_thresh = 0.04, LKArg.ZNCCThreshold = 0.91, LKArg.ssigThresh = 30.0;
+		LKArg.DIC_Algo = 3, LKArg.step = 1, LKArg.hsubset = 8, LKArg.npass = 1, LKArg.npass2 = 1, LKArg.searchRangeScale = 3, LKArg.searchRangeScale2 = 6, LKArg.searchRange = 8;
+		LKArg.PSSDab_thresh = 0.04, LKArg.ZNCCThreshold = 0.975, LKArg.ssigThresh = 30.0;
 		LKArg.ProjectorGsigma = 0.707;  //Important: this value may change in simulation or real modes.
 		IlluminationFlowImages IlluminationImages(width, height, pwidth, pheight, nchannels, nCams, nPros, 1);
-		IlluminationImages.frameJump = frameJump, IlluminationImages.iRate = 10;  //Important: iRate = interleaving rate
+		IlluminationImages.frameJump = frameJump, IlluminationImages.iRate = 30;  //Important: iRate = interleaving rate
 
 		int step = SepMode == 0 ? 2 : 1;
 		for (int ii = startID; ii <= stopID; ii += step)
 		{
-			//IllumTextSepDriver(DataPATH, TDataPATH, IlluminationImages, 0, LKArg, ii, SepMode, colorTexture, ROI, SimulationMode);
-			//IllumTextSepDriver(DataPATH, TDataPATH, IlluminationImages, 1, LKArg, ii, SepMode, colorTexture, ROI, SimulationMode);
+			IllumTextSepDriver(DataPATH, TDataPATH, IlluminationImages, 0, LKArg, ii, SepMode, colorTexture, ROI, SimulationMode);
+			IllumTextSepDriver(DataPATH, TDataPATH, IlluminationImages, 1, LKArg, ii, SepMode, colorTexture, ROI, SimulationMode);
 			//IllumSepDriver(DataPATH, TDataPATH, IlluminationImages, LKArg, ii, mode, ROI, SimulationMode);
 			TwoIllumTextSepDriver(DataPATH, TDataPATH, IlluminationImages, LKArg, ii, SepMode, ROI, true, colorTexture, SimulationMode);
 		}
