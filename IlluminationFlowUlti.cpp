@@ -1936,6 +1936,196 @@ double TMatchingFine_ZNCC(double *Pattern, int pattern_size, int hsubset, double
 
 	return 1.0 - 0.5*DIC_Coeff_min;
 }
+double TMatchingFine_ZNCC(double *Pattern, int pattern_size, int hsubset, double *Para, int width, int height, int nchannels, CPoint2 &POI, int advanced_tech, int Convergence_Criteria, double ZNCCthresh, int InterpAlgo, double *Znssd_reqd)
+{
+	int i, j, k, m, ii, jj, kk, iii, jjj, iii2, jjj2;
+	double II, JJ, iii_n, jjj_n, gx, gy, DIC_Coeff, DIC_Coeff_min, t_1, t_2, t_3, t_4, t_5, t_6, m_F, m_G, t_f, t_ff, t_g, S[6];
+	double conv_crit_1 = pow(10.0, -Convergence_Criteria - 2);
+	double conv_crit_2 = conv_crit_1*0.1;
+	int NN[] = { 6, 12 }, P_Jump_Incr[] = { 1, 1 };
+	int nn = NN[advanced_tech], nExtraParas = 2, _iter = 0, Iter_Max = 50;
+	int p_jump, p_jump_0 = 1, p_jump_incr = P_Jump_Incr[advanced_tech];
+	int length = width*height, pattern_length = pattern_size*pattern_size;
+
+	double AA[144], BB[12], CC[12];
+
+	bool createMem = false;
+	if (Znssd_reqd == NULL)
+	{
+		createMem = true;
+		Znssd_reqd = new double[6 * (2 * hsubset + 1)*(2 * hsubset + 1)*nchannels];
+	}
+
+	int Pattern_cen_x = pattern_size / 2;
+	int Pattern_cen_y = pattern_size / 2;
+
+	double p[12], p_best[12];
+	for (i = 0; i < 12; i++)
+		p[i] = 0.0;
+
+	nn = NN[advanced_tech];
+	int pixel_increment_in_subset[] = { 1, 2, 2, 3 };
+
+	bool printout = false;
+	FILE *fp1 = 0, *fp2 = 0;
+
+	/// Iteration: Begin
+	bool Break_Flag = false;
+	DIC_Coeff_min = 4.0;
+	for (p_jump = p_jump_0; p_jump > 0; p_jump -= p_jump_incr)
+	{
+		for (k = 0; k < Iter_Max; k++)
+		{
+			m = -1;
+			t_1 = 0.0, t_2 = 0.0;
+			for (iii = 0; iii < 144; iii++)
+				AA[iii] = 0.0;
+			for (iii = 0; iii < 12; iii++)
+				BB[iii] = 0.0;
+
+			if (printout)
+				fp1 = fopen("C:/temp/src.txt", "w+"), fp2 = fopen("C:/temp/tar.txt", "w+");
+
+			for (jjj = -hsubset; jjj <= hsubset; jjj += p_jump)
+			{
+				for (iii = -hsubset; iii <= hsubset; iii += p_jump)
+				{
+					ii = Pattern_cen_x + iii, jj = Pattern_cen_y + jjj;
+					if (ii<0 || ii>(width - 1) || jj<0 || jj>(height - 1))
+						continue;
+
+					iii2 = iii*iii, jjj2 = jjj*jjj;
+					if (advanced_tech == 0)
+					{
+						II = POI.x + iii + p[0] + p[2] * iii + p[3] * jjj;
+						JJ = POI.y + jjj + p[1] + p[4] * iii + p[5] * jjj;
+					}
+					else if (advanced_tech == 1)
+					{
+						II = POI.x + iii + p[0] + p[2] * iii + p[3] * jjj + p[6] * iii2*0.5 + p[7] * jjj2*0.5 + p[8] * iii*jjj;
+						JJ = POI.y + jjj + p[1] + p[4] * iii + p[5] * jjj + p[9] * iii2*0.5 + p[10] * jjj2*0.5 + p[11] * iii*jjj;
+					}
+
+					if (II<0.0 || II>(double)(width - 1) - (1e-10) || JJ<0.0 || JJ>(double)(height - 1) - (1e-10))
+						continue;
+
+					for (kk = 0; kk < nchannels; kk++)
+					{
+						Get_Value_Spline(Para+kk*length, width, height, II, JJ, S, 0, InterpAlgo);
+						m_F = Pattern[ii + jj*pattern_size+kk*pattern_length];
+						m_G = S[0], gx = S[1], gy = S[2];
+						m++;
+
+						Znssd_reqd[6 * m + 0] = m_F, Znssd_reqd[6 * m + 1] = m_G;
+						Znssd_reqd[6 * m + 2] = gx, Znssd_reqd[6 * m + 3] = gy;
+						Znssd_reqd[6 * m + 4] = (double)iii, Znssd_reqd[6 * m + 5] = (double)jjj;
+						t_1 += m_F, t_2 += m_G;
+
+						if (printout)
+							fprintf(fp1, "%e ", m_F), fprintf(fp2, "%e ", m_G);
+					}
+				}
+				if (printout)
+					fprintf(fp1, "\n"), fprintf(fp2, "\n");
+			}
+			if (printout)
+				fclose(fp1), fclose(fp2);
+
+			if (k == 0)
+			{
+				t_f = t_1 / (m + 1);
+				t_1 = 0.0;
+				for (iii = 0; iii <= m; iii++)
+				{
+					t_4 = Znssd_reqd[6 * iii + 0] - t_f;
+					t_1 += t_4*t_4;
+				}
+				t_ff = sqrt(t_1);
+			}
+
+			t_g = t_2 / (m + 1);
+			t_2 = 0.0;
+			for (iii = 0; iii <= m; iii++)
+			{
+				t_5 = Znssd_reqd[6 * iii + 1] - t_g;
+				t_2 += t_5*t_5;
+			}
+			t_2 = sqrt(t_2);
+
+			DIC_Coeff = 0.0;
+			for (iii = 0; iii <= m; iii++)
+			{
+				t_4 = Znssd_reqd[6 * iii + 0] - t_f;
+				t_5 = Znssd_reqd[6 * iii + 1] - t_g;
+				t_6 = t_5 / t_2 - t_4 / t_ff;
+				t_3 = t_6 / t_2;
+				gx = Znssd_reqd[6 * iii + 2], gy = Znssd_reqd[6 * iii + 3];
+				iii_n = Znssd_reqd[6 * iii + 4], jjj_n = Znssd_reqd[6 * iii + 5];
+				CC[0] = gx, CC[1] = gy;
+				CC[2] = gx*iii_n, CC[3] = gx*jjj_n;
+				CC[4] = gy*iii_n, CC[5] = gy*jjj_n;
+				if (advanced_tech == 1)
+				{
+					CC[6] = gx*iii_n*iii_n*0.5, CC[7] = gx*jjj_n*jjj_n*0.5, CC[8] = gx*iii_n*jjj_n;
+					CC[9] = gy*iii_n*iii_n*0.5, CC[10] = gy*jjj_n*jjj_n*0.5, CC[11] = gy*iii_n*jjj_n;
+				}
+				for (j = 0; j < nn; j++)
+				{
+					BB[j] += t_3*CC[j];
+					for (i = 0; i < nn; i++)
+						AA[j*nn + i] += CC[i] * CC[j] / (t_2*t_2);
+				}
+
+				DIC_Coeff += t_6*t_6;
+			}
+
+			QR_Solution_Double(AA, BB, nn, nn);
+			for (iii = 0; iii < nn; iii++)
+				p[iii] -= BB[iii];
+
+			if (!IsNumber(p[0]) || abs(p[0]) > hsubset || abs(p[1]) > hsubset)
+			{
+				if (createMem)
+					delete[]Znssd_reqd;
+				return false;
+			}
+
+			if (DIC_Coeff < DIC_Coeff_min)	// If the iteration does not converge, this can be helpful
+			{
+				DIC_Coeff_min = DIC_Coeff;
+				for (iii = 0; iii < nn; iii++)
+					p_best[iii] = p[iii];
+			}
+
+			if (fabs(BB[0]) < conv_crit_1 && fabs(BB[1]) < conv_crit_1)
+			{
+				for (iii = 2; iii < nn; iii++)
+				{
+					if (fabs(BB[iii]) > conv_crit_2)
+						break;
+				}
+				if (iii == nn)
+					Break_Flag = true;
+			}
+
+			if (Break_Flag)
+				break;
+		}
+		// In case the iteration converges to "wrong" points, always use the data that lead to the least-square value.
+		for (iii = 0; iii < nn; iii++)
+			p[iii] = p_best[iii];
+	}
+	/// Iteration: End
+
+	if (createMem)
+		delete[]Znssd_reqd;
+	if (abs(p[0]) > hsubset || abs(p[1]) > hsubset || p[0] != p[0] || p[1] != p[1] || 1.0 - 0.5*DIC_Coeff_min < ZNCCthresh)
+		return false;
+
+	POI.x += p[0], POI.y += p[1];
+
+	return 1.0 - 0.5*DIC_Coeff_min;
+}
 bool TMatchingFine(double *Pattern, int pattern_size, int hsubset, double *Para, int width, int height, CPoint2 &POI, int advanced_tech, int Convergence_Criteria, double ZNCCthresh, int InterpAlgo, double *ShapePara, double *maxZNCC)
 {
 	// NOTE: initial guess is of the form of the homography
@@ -4771,16 +4961,16 @@ double EpipSearchLK(CPoint2 *dPts, double *EpiLine, double *Img1, double *Img2, 
 				for (mm = -hsubset; mm <= hsubset && flag; mm++)
 					for (nn = -hsubset; nn <= hsubset; nn++)
 					{
-					xx = Pts[1].x + nn + nn*iWp[0] + mm*iWp[1];
-					yy = Pts[1].y + mm + nn*iWp[2] + mm*iWp[3];
-					if (xx<2 || xx>width2 - 2 || yy<2 || yy>height2 - 2)
-					{
-						flag = false; break;
-					}
-					else
-						TarPatch[(nn + hsubset) + (mm + hsubset)*Tsize] = BilinearInterp(Img2, width2, height2, xx, yy);
-					//Get_Value_Spline(Para2, width2, height2, xx, yy, S, -1, LKArg.InterpAlgo);
-					//TarPatch[(nn+hsubset) + (mm+hsubset)*Tsize] = S[0];
+						xx = Pts[1].x + nn + nn*iWp[0] + mm*iWp[1];
+						yy = Pts[1].y + mm + nn*iWp[2] + mm*iWp[3];
+						if (xx<2 || xx>width2 - 2 || yy<2 || yy>height2 - 2)
+						{
+							flag = false; break;
+						}
+						else
+							TarPatch[(nn + hsubset) + (mm + hsubset)*Tsize] = BilinearInterp(Img2, width2, height2, xx, yy);
+						//Get_Value_Spline(Para2, width2, height2, xx, yy, S, -1, LKArg.InterpAlgo);
+						//TarPatch[(nn+hsubset) + (mm+hsubset)*Tsize] = S[0];
 					}
 				if (flag)
 					zncc = ComputeZNCCPatch(RefPatch, TarPatch, hsubset, nchannels, ZNCCStorage);
@@ -4814,15 +5004,15 @@ double EpipSearchLK(CPoint2 *dPts, double *EpiLine, double *Img1, double *Img2, 
 					for (mm = -hsubset; mm <= hsubset && flag; mm++)
 						for (nn = -hsubset; nn <= hsubset; nn++)
 						{
-						xx = Pts[1].x + nn + nn*iWp[0] + mm*iWp[1], yy = Pts[1].y + mm + nn*iWp[2] + mm*iWp[3];
-						if (xx<2 || xx>width2 - 2 || yy<2 || yy>height2 - 2)
-						{
-							flag = false; break;
-						}
-						else
-							TarPatch[(nn + hsubset) + (mm + hsubset)*Tsize] = BilinearInterp(Img2, width2, height2, xx, yy);
-						//Get_Value_Spline(Para2, width2, height2, xx, yy, S, -1, LKArg.InterpAlgo);
-						//TarPatch[(nn+hsubset) + (mm+hsubset)*Tsize] = S[0];
+							xx = Pts[1].x + nn + nn*iWp[0] + mm*iWp[1], yy = Pts[1].y + mm + nn*iWp[2] + mm*iWp[3];
+							if (xx<2 || xx>width2 - 2 || yy<2 || yy>height2 - 2)
+							{
+								flag = false; break;
+							}
+							else
+								TarPatch[(nn + hsubset) + (mm + hsubset)*Tsize] = BilinearInterp(Img2, width2, height2, xx, yy);
+							//Get_Value_Spline(Para2, width2, height2, xx, yy, S, -1, LKArg.InterpAlgo);
+							//TarPatch[(nn+hsubset) + (mm+hsubset)*Tsize] = S[0];
 						}
 					if (flag)
 						zncc = ComputeZNCCPatch(RefPatch, TarPatch, hsubset, nchannels, ZNCCStorage);
@@ -4854,15 +5044,15 @@ double EpipSearchLK(CPoint2 *dPts, double *EpiLine, double *Img1, double *Img2, 
 					for (mm = -hsubset; mm <= hsubset && flag; mm++)
 						for (nn = -hsubset; nn <= hsubset; nn++)
 						{
-						xx = Pts[1].x + nn + nn*iWp[0] + mm*iWp[1], yy = Pts[1].y + mm + nn*iWp[2] + mm*iWp[3];
-						if (xx<2 || xx>width2 - 2 || yy<2 || yy>height2 - 2)
-						{
-							flag = false; break;
-						}
-						else
-							TarPatch[(nn + hsubset) + (mm + hsubset)*Tsize] = BilinearInterp(Img2, width2, height2, xx, yy);
-						//Get_Value_Spline(Para2, width2, height2, xx, yy, S, -1, LKArg.InterpAlgo);
-						//TarPatch[(nn+hsubset) + (mm+hsubset)*Tsize] = S[0];
+							xx = Pts[1].x + nn + nn*iWp[0] + mm*iWp[1], yy = Pts[1].y + mm + nn*iWp[2] + mm*iWp[3];
+							if (xx<2 || xx>width2 - 2 || yy<2 || yy>height2 - 2)
+							{
+								flag = false; break;
+							}
+							else
+								TarPatch[(nn + hsubset) + (mm + hsubset)*Tsize] = BilinearInterp(Img2, width2, height2, xx, yy);
+							//Get_Value_Spline(Para2, width2, height2, xx, yy, S, -1, LKArg.InterpAlgo);
+							//TarPatch[(nn+hsubset) + (mm+hsubset)*Tsize] = S[0];
 						}
 					if (flag)
 						zncc = ComputeZNCCPatch(RefPatch, TarPatch, hsubset, nchannels, ZNCCStorage);
@@ -4900,15 +5090,15 @@ double EpipSearchLK(CPoint2 *dPts, double *EpiLine, double *Img1, double *Img2, 
 						for (mm = -hsubset; mm <= hsubset && flag; mm++)
 							for (nn = -hsubset; nn <= hsubset; nn++)
 							{
-							xx = Pts[1].x + nn + nn*iWp[0] + mm*iWp[1], yy = Pts[1].y + mm + nn*iWp[2] + mm*iWp[3];
-							if (xx<2 || xx>width2 - 2 || yy<2 || yy>height2 - 2)
-							{
-								flag = false; break;
-							}
-							else
-								TarPatch[(nn + hsubset) + (mm + hsubset)*Tsize] = BilinearInterp(Img2, width2, height2, xx, yy);
-							//Get_Value_Spline(Para2, width2, height2, xx, yy, S, -1, LKArg.InterpAlgo);
-							//TarPatch[(nn+hsubset) + (mm+hsubset)*Tsize] = S[0];
+								xx = Pts[1].x + nn + nn*iWp[0] + mm*iWp[1], yy = Pts[1].y + mm + nn*iWp[2] + mm*iWp[3];
+								if (xx<2 || xx>width2 - 2 || yy<2 || yy>height2 - 2)
+								{
+									flag = false; break;
+								}
+								else
+									TarPatch[(nn + hsubset) + (mm + hsubset)*Tsize] = BilinearInterp(Img2, width2, height2, xx, yy);
+								//Get_Value_Spline(Para2, width2, height2, xx, yy, S, -1, LKArg.InterpAlgo);
+								//TarPatch[(nn+hsubset) + (mm+hsubset)*Tsize] = S[0];
 							}
 						if (flag)
 							zncc = ComputeZNCCPatch(RefPatch, TarPatch, hsubset, nchannels, ZNCCStorage);
@@ -5466,7 +5656,7 @@ void DIC_Initial_Guess_Refine(int x_n, int y_n, double *lpImageData, double *Zns
 
 	return;
 }
-double DIC_Compute(int UV_index_n, int UV_index, double *lpImageData, double *Para, double *lpUV, int *lpUV_xy, double *Znssd_reqd, bool *lpROI, int nchannels, int width1, int height1, int width2, int height2, int UV_length, int DIC_Algo, int hsubset, int step, int Iter_Max, int *iteration_check, double conv_crit_1, double conv_crit_2, int Interpolation_Algorithm, int Analysis_Speed, bool firsttime, double *direction, bool checkZNCC = false, double ZNNCThresh = 0.99)
+double DIC_Compute2(int UV_index_n, int UV_index, double *lpImageData, double *Para, double *lpUV, int *lpUV_xy, double *Znssd_reqd, bool *lpROI, int nchannels, int width1, int height1, int width2, int height2, int UV_length, int DIC_Algo, int hsubset, int step, int Iter_Max, int *iteration_check, double conv_crit_1, double conv_crit_2, int Interpolation_Algorithm, int Analysis_Speed, bool firsttime, double *direction, bool checkZNCC = false, double ZNNCThresh = 0.99)
 {
 	double DIC_Coeff, a, b;
 	int i, j, ii, jj, kk, iii, jjj, iii2, jjj2, ij;
@@ -5479,6 +5669,7 @@ double DIC_Compute(int UV_index_n, int UV_index, double *lpImageData, double *Pa
 	double p[8], ip[8], p_best[8];// U, V, Ux, Uy, Vx, Vy, (a) and b.
 	double AA[144], BB[12], CC[12], gx, gy;
 
+	direction[0] = 1.0, direction[1] = 0;
 	int x = lpUV_xy[2 * UV_index], y = lpUV_xy[2 * UV_index + 1];
 	int x_n = lpUV_xy[2 * UV_index_n], y_n = lpUV_xy[2 * UV_index_n + 1];
 
@@ -5490,7 +5681,7 @@ double DIC_Compute(int UV_index_n, int UV_index, double *lpImageData, double *Pa
 
 	// The following two lines are needed for large rotation cases.
 	if (DIC_Algo == 1)
-		p[0] = 0.5*((p[0] * direction[0] + (p[1] * (x_n - x) + p[2] * (y_n - y))) / direction[0] + (p[0] * direction[1] + (p[3] * (x_n - x) + p[4] * (y_n - y))) / direction[1]);
+		;//p[0] = 0.5*((p[0] * direction[0] + (p[1] * (x_n - x) + p[2] * (y_n - y))) / direction[0] + (p[0] * direction[1] + (p[3] * (x_n - x) + p[4] * (y_n - y))) / direction[1]);//Supreeth
 	else if (DIC_Algo == 3)
 		p[0] += (p[2] * (x_n - x) + p[3] * (y_n - y)), p[1] += (p[4] * (x_n - x) + p[5] * (y_n - y));
 
@@ -5801,7 +5992,264 @@ double DIC_Compute(int UV_index_n, int UV_index, double *lpImageData, double *Pa
 	}
 
 }
-double DIC_Calculation(int UV_index_n, int UV_index, double *lpImageData, double *Para, double *lpUV, int *lpUV_xy, double *Znssd_reqd, bool *lpROI, int nchannels, int width1, int height1, int width2, int height2, int UV_length, int DIC_Algo, int hsubset, int step, double PSSDab_thresh, double ZNCCthresh, double ssigThresh, int Iter_Max, int *iteration_check, double conv_crit_1, double conv_crit_2, int Interpolation_Algorithm, int Analysis_Speed, bool firsttime, double *direction, double *FlowU = 0, double *FlowV = 0, bool InitFlow = 0, bool checkZNCC = false)
+double DIC_Compute(int UV_index_n, int UV_index, double *lpImageData, double *Para, double *lpUV, int *lpUV_xy, double *Znssd_reqd, bool *lpROI, int nchannels, int width1, int height1, int width2, int height2, int UV_length, int DIC_Algo, int hsubset, int step, int Iter_Max, int *iteration_check, double conv_crit_1, double conv_crit_2, int Interpolation_Algorithm, int Analysis_Speed, bool firsttime, double *direction, bool checkZNCC = false, double ZNNCThresh = 0.99)
+{
+	double DIC_Coeff, a, b;
+	int i, j, ii, jj, kk, iii, jjj;
+	int k, m, nn, nExtraParas;
+	int length1 = width1*height1, length2 = width2*height2;
+	int NN[] = { 6, 4 };
+	double II, JJ, iii_n, jjj_n;
+	double m_F, m_G, t_1, t_2, t_3, t_4, t_5, t_6, t_f, t_ff, t_g;
+	double S[9];
+	double p[6], ip[6], p_best[6];// U, V, Ux, Uy, (a) and b.
+	double AA[36], BB[6], CC[6], gx, gy;
+
+	int x = lpUV_xy[2 * UV_index], y = lpUV_xy[2 * UV_index + 1];
+	int x_n = lpUV_xy[2 * UV_index_n], y_n = lpUV_xy[2 * UV_index_n + 1];
+
+	nn = NN[DIC_Algo];
+	nExtraParas = 2;
+
+	for (i = 0; i < nn; i++)
+		p[i] = lpUV[i], ip[i] = lpUV[i];
+
+	bool printout = false; FILE *fp1 = 0, *fp2 = 0;
+	int piis, pixel_increment_in_subset[] = { 1, 2, 2, 3 };
+	double DIC_Coeff_min = 9e9;
+	/// Iteration: Begin
+	bool Break_Flag = false;
+	for (k = 0; k < Iter_Max; k++)
+	{
+		m = -1;
+		t_1 = 0.0, t_2 = 0.0;
+		for (iii = 0; iii < nn*nn; iii++)
+			AA[iii] = 0.0;
+		for (iii = 0; iii < nn; iii++)
+			BB[iii] = 0.0;
+
+		a = p[nn - 2], b = p[nn - 1];
+		if (printout)
+			fp1 = fopen("C:/temp/src.txt", "w+"), fp2 = fopen("C:/temp/tar.txt", "w+");
+
+		piis = pixel_increment_in_subset[Analysis_Speed];	// Depending on algorithms, Analysis_Speed may be changed during the iteration loop.
+		for (jjj = -hsubset; jjj <= hsubset; jjj += piis)
+		{
+			for (iii = -hsubset; iii <= hsubset; iii += piis)
+			{
+				ii = x_n + iii, jj = y_n + jjj;
+				if (ii<0 || ii>(width1 - 1) || jj<0 || jj>(height1 - 1) || lpROI[jj*width1 + ii] == false)
+					continue;
+
+				II = ii + p[0] + p[2] * iii + p[3] * jjj, JJ = jj + p[1];
+				if (II<0.0 || II>(double)(width2 - 1) - (1e-10) || JJ<0.0 || JJ>(double)(height2 - 1) - (1e-10))
+					continue;
+
+				for (kk = 0; kk < nchannels; kk++)
+				{
+					Get_Value_Spline(Para + kk*length2, width2, height2, II, JJ, S, 0, Interpolation_Algorithm);
+
+					m_F = lpImageData[ii + jj*width1 + kk*length1];
+					m_G = S[0], gx = S[1], gy = S[2];
+					m++;
+
+					if (DIC_Algo == 0)
+					{
+						t_3 = a*m_G + b - m_F, t_4 = a;
+						t_1 += t_3*t_3, t_2 += m_F*m_F;
+
+						t_5 = t_4*gx, t_6 = t_4*gy;
+						if (DIC_Algo == 0)
+							CC[0] = t_5, CC[1] = t_6, CC[2] = t_5*iii, CC[3] = t_5*jjj, CC[4] = m_G, CC[5] = 1.0;
+
+						for (j = 0; j < nn; j++)
+						{
+							BB[j] += t_3*CC[j];
+							for (i = 0; i < nn; i++)
+								AA[j*nn + i] += CC[i] * CC[j];
+						}
+					}
+					else
+					{
+						Znssd_reqd[6 * m + 0] = m_F, Znssd_reqd[6 * m + 1] = m_G;
+						Znssd_reqd[6 * m + 2] = gx, Znssd_reqd[6 * m + 3] = gy;
+						Znssd_reqd[6 * m + 4] = (double)iii, Znssd_reqd[6 * m + 5] = (double)jjj;
+						t_1 += m_F, t_2 += m_G;
+					}
+
+					if (printout)
+						fprintf(fp1, "%.2f ", m_F), fprintf(fp2, "%.2f ", m_G);
+				}
+			}
+			if (printout)
+				fprintf(fp1, "\n"), fprintf(fp2, "\n");
+		}
+		if (printout)
+			fclose(fp1), fclose(fp2);
+
+		if (DIC_Algo == 0)
+			DIC_Coeff = t_1 / t_2;
+		else
+		{
+			if (k == 0)
+			{
+				t_f = t_1 / (m + 1);
+				t_1 = 0.0;
+				for (iii = 0; iii <= m; iii++)
+				{
+					t_4 = Znssd_reqd[6 * iii + 0] - t_f;
+					t_1 += t_4*t_4;
+				}
+				t_ff = sqrt(t_1);
+			}
+			t_g = t_2 / (m + 1);
+			t_2 = 0.0;
+			for (iii = 0; iii <= m; iii++)
+			{
+				t_5 = Znssd_reqd[6 * iii + 1] - t_g;
+				t_2 += t_5*t_5;
+			}
+			t_2 = sqrt(t_2);
+
+			DIC_Coeff = 0.0;
+			for (iii = 0; iii <= m; iii++)
+			{
+				t_4 = Znssd_reqd[6 * iii + 0] - t_f;
+				t_5 = Znssd_reqd[6 * iii + 1] - t_g;
+				t_6 = t_5 / t_2 - t_4 / t_ff;
+				t_3 = t_6 / t_2;
+				gx = Znssd_reqd[6 * iii + 2], gy = Znssd_reqd[6 * iii + 3];
+				iii_n = Znssd_reqd[6 * iii + 4], jjj_n = Znssd_reqd[6 * iii + 5];
+				CC[0] = gx, CC[1] = gy;
+				CC[2] = gx*iii_n, CC[3] = gx*jjj_n;
+				CC[4] = gy*iii_n, CC[5] = gy*jjj_n;
+				for (j = 0; j < nn; j++)
+				{
+					BB[j] += t_3*CC[j];
+					for (i = 0; i < nn; i++)
+						AA[j*nn + i] += CC[i] * CC[j] / (t_2*t_2);
+				}
+
+				DIC_Coeff += t_6*t_6;
+			}
+		}
+
+		if (!IsNumber(DIC_Coeff))
+			return 9e9;
+		if (!IsFiniteNumber(DIC_Coeff))
+			return 9e9;
+
+		QR_Solution_Double(AA, BB, nn, nn);
+		for (iii = 0; iii < nn; iii++)
+			p[iii] -= BB[iii];
+
+		if (DIC_Coeff < DIC_Coeff_min)	// If the iteration does not converge, this can be helpful
+		{
+			DIC_Coeff_min = DIC_Coeff;
+			for (iii = 0; iii < nn; iii++)
+				p_best[iii] = p[iii];
+			if (!IsNumber(p[0]) || !IsNumber(p[1]))
+				return 9e9;
+		}
+
+		if (DIC_Algo == 0)
+		{
+			if (abs(p[0] - ip[0]) > hsubset || abs(p[1] - ip[1]) > hsubset)
+				return 9e9;
+			if (fabs(BB[0]) < conv_crit_1 && fabs(BB[1]) < conv_crit_1)
+			{
+				for (iii = 2; iii < nn - nExtraParas; iii++)
+					if (fabs(BB[iii]) > conv_crit_2)
+						break;
+				if (iii == nn - nExtraParas)
+					if (Analysis_Speed == 1)	// For Analysis_Speed==1, need to run a full "normal speed" analysis
+						Analysis_Speed = 0;
+					else
+						Break_Flag = true;
+			}
+		}
+		else
+		{
+			if (fabs(BB[0]) < conv_crit_1 && fabs(BB[1]) < conv_crit_1)
+			{
+				for (iii = 2; iii < nn; iii++)
+				{
+					if (fabs(BB[iii]) > conv_crit_2)
+						break;
+				}
+				if (iii == nn)
+					Break_Flag = true;
+			}
+		}
+
+		if (Break_Flag)
+			break;
+	}
+	if (k < 1)
+		k = 1;
+	iteration_check[k - 1]++;
+	/// Iteration: End
+
+	if (checkZNCC && DIC_Algo < 4)
+	{
+		int m = 0;
+		double t_1, t_2, t_3, t_4, t_5, ZNCC, t_f = 0.0, t_g = 0.0;
+		if (printout)
+			fp2 = fopen("C:/temp/tar.txt", "w+");
+		for (jjj = -hsubset; jjj <= hsubset; jjj++)
+		{
+			for (iii = -hsubset; iii <= hsubset; iii++)
+			{
+				ii = x_n + iii, jj = y_n + jjj;
+				II = ii + p[0] + p[2] * iii + p[3] * jjj, JJ = jj + p[1];
+				if (II<0.0 || II>(double)(width2 - 1) - (1e-10) || JJ<0.0 || JJ>(double)(height2 - 1) - (1e-10))
+					continue;
+
+				for (kk = 0; kk < nchannels; kk++)
+				{
+					Get_Value_Spline(Para + kk*length2, width2, height2, II, JJ, S, 0, Interpolation_Algorithm);
+					if (printout)
+						fprintf(fp2, "%.4f ", S[0]);
+
+					Znssd_reqd[2 * m] = lpImageData[ii + jj*width1 + kk*length1], Znssd_reqd[2 * m + 1] = S[0];
+					t_f += Znssd_reqd[2 * m], t_g += Znssd_reqd[2 * m + 1];
+					m++;
+				}
+			}
+			if (printout)
+				fprintf(fp2, "\n");
+		}
+		if (printout)
+			fclose(fp2);
+
+		t_f = t_f / m, t_g = t_g / m;
+		t_1 = 0.0, t_2 = 0.0, t_3 = 0.0;
+		for (i = 0; i < m; i++)
+		{
+			t_4 = Znssd_reqd[2 * i] - t_f, t_5 = Znssd_reqd[2 * i + 1] - t_g;
+			t_1 += 1.0*t_4*t_5, t_2 += 1.0*t_4*t_4, t_3 += 1.0*t_5*t_5;
+		}
+
+		t_2 = sqrt(t_2*t_3);
+		if (t_2 < 1e-10)
+			t_2 = 1e-10;
+
+		ZNCC = t_1 / t_2; //This is the zncc score
+		if (abs(ZNCC) < ZNNCThresh)
+			DIC_Coeff_min = 1.0;
+	}
+
+
+	if (abs(p_best[0] - ip[0]) > hsubset || abs(p_best[1] - ip[1]) > hsubset || p_best[0] != p_best[0] || p_best[1] != p_best[1])
+		return 9e9;
+	else
+	{
+		for (i = 0; i < nn; i++)
+			lpUV[i] = p_best[i];
+		return DIC_Coeff_min;
+	}
+}
+double DIC_Calculation2(int UV_index_n, int UV_index, double *lpImageData, double *Para, double *lpUV, int *lpUV_xy, double *Znssd_reqd, bool *lpROI, int nchannels, int width1, int height1, int width2, int height2, int UV_length, int DIC_Algo, int hsubset, int step, double PSSDab_thresh, double ZNCCthresh, double ssigThresh, int Iter_Max, int *iteration_check, double conv_crit_1, double conv_crit_2, int Interpolation_Algorithm, int Analysis_Speed, bool firsttime, double *direction, double *FlowU = 0, double *FlowV = 0, bool InitFlow = 0, bool checkZNCC = false)
 {
 	int i;
 	int NN[] = { 3, 7, 4, 8, 6, 12 }, nn = NN[DIC_Algo];
@@ -5862,7 +6310,345 @@ double DIC_Calculation(int UV_index_n, int UV_index, double *lpImageData, double
 		return 9e9;
 	}
 }
-int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_calculated, bool *tROI, CPoint2 *SparseCorres1, CPoint2 *SparseCorres2, int nSeedPoints, LKParameters LKArg, int nchannels, int width1, int height1, int width2, int height2, double Scale, double *Epipole, float *WarpingParas, double *Pmat, double *K, double *distortion, double triThresh)
+double DIC_Calculation(int UV_index_n, int UV_index, double *lpImageData, double *Para, double *lpUV, int *lpUV_xy, double *Znssd_reqd, bool *lpROI, int nchannels, int width1, int height1, int width2, int height2, int UV_length, int DIC_Algo, int hsubset, int step, double PSSDab_thresh, double ZNCCthresh, double ssigThresh, int Iter_Max, int *iteration_check, double conv_crit_1, double conv_crit_2, int Interpolation_Algorithm, int Analysis_Speed, bool firsttime, double *direction, double *FlowU = 0, double *FlowV = 0, bool InitFlow = 0, bool checkZNCC = false)
+{
+	int i;
+	int NN[] = { 6, 4 }, nn = NN[DIC_Algo];
+
+	double shapepara[6];
+	for (i = 0; i < nn; i++)
+		shapepara[i] = lpUV[i*UV_length + UV_index];
+
+	double ssig = ComputeSSIG(Para, lpUV_xy[2 * UV_index_n], lpUV_xy[2 * UV_index_n + 1], hsubset, width1, height1, nchannels, Interpolation_Algorithm);
+	if (ssig < ssigThresh)
+	{
+		for (i = 0; i < nn; i++)
+			*(lpUV + i*UV_length + UV_index_n) = 0.0;
+		return 9e9;
+	}
+
+	double DIC_Coeff = DIC_Compute(UV_index_n, UV_index, lpImageData, Para + width1*height1*nchannels, shapepara, lpUV_xy, Znssd_reqd, lpROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, Interpolation_Algorithm, Analysis_Speed, firsttime, direction, checkZNCC, ZNCCthresh);
+	if (DIC_Coeff < PSSDab_thresh)
+	{
+		for (i = 0; i < nn; i++)
+			lpUV[i*UV_length + UV_index_n] = shapepara[i];
+		return DIC_Coeff;
+	}
+	else
+	{
+		for (i = 0; i < nn; i++)
+			*(lpUV + i*UV_length + UV_index_n) = 0.0;
+		return 9e9;
+	}
+}
+
+double BruteforceMatchingEpipolar(CPoint2 From, CPoint2 &Target, double *direction, int maxdisparity, double *Img1, double *Img2, double *Img2Para, int nchannels, int width1, int height1, int width2, int height2, LKParameters LKArg, double *tPatch, double *tZNCC, double *Znssd_reqd)//double *Znssd_reqd = new double[6 * (2 * hsubset + 1)*(2 * hsubset + 1)*nchannels];
+{
+	int kk, ll, mm, nn, ii, jj;
+	int length1 = width1*height1, length2 = width2*height2;
+	int hsubset = LKArg.hsubset, patchS = 2 * hsubset + 1, patchLength = patchS*patchS;
+
+	//Take reference patch
+	int x0 = (int)(From.x + 0.5), y0 = (int)(From.y + 0.5);
+	for (ll = 0; ll < nchannels; ll++)
+		for (mm = -hsubset; mm <= hsubset; mm++)
+			for (nn = -hsubset; nn <= hsubset; nn++)
+				tPatch[(mm + hsubset)*patchS + (nn + hsubset) + ll*patchLength] = Img1[(x0 + nn) + (y0 + mm)*width1 + ll*length1];
+
+	//Search along epipolar line
+	double zncc, znccMax = 0.0;
+	int bestDistparity = 0;
+	for (int ii = -maxdisparity; ii < maxdisparity; ii += 2)
+	{
+		//Take target patch
+		int x1 = (int)(From.x + direction[0] * ii + 0.5), y1 = (int)(From.y + direction[1] * ii + 0.5);
+		for (ll = 0; ll < nchannels; ll++)
+			for (mm = -hsubset; mm <= hsubset; mm++)
+				for (nn = -hsubset; nn <= hsubset; nn++)
+					tPatch[(mm + hsubset)*patchS + (nn + hsubset) + ll*patchLength + nchannels*patchLength] = Img2[(x1 + nn) + (y1 + mm)*width2 + ll*length2];
+
+		zncc = ComputeZNCCPatch(tPatch, tPatch + patchLength*nchannels, hsubset, nchannels, tZNCC);
+		if (zncc > znccMax)
+			znccMax = zncc, bestDistparity = ii;
+	}
+
+	//do refinement
+	if (znccMax > LKArg.ZNCCThreshold - 0.25)
+	{
+		double DIC_Coeff, a, b;
+		int i, j, ii, jj, kk, iii, jjj;
+		int k, m, nn, nExtraParas;
+		int NN[] = { 6, 4 };
+		double II, JJ, iii_n, jjj_n;
+		double m_F, m_G, t_1, t_2, t_3, t_4, t_5, t_6, t_f, t_ff, t_g;
+		double S[9], gx, gy, p[6], ip[6], p_best[6], AA[36], BB[6], CC[6];
+		int Analysis_Speed = LKArg.Analysis_Speed;
+		double conv_crit_1 = LKArg.Convergence_Criteria, conv_crit_2 = conv_crit_1*0.1;
+
+		int x = x0, y = y0;
+		int x_n = (int)(From.x + direction[0] * bestDistparity + 0.5), y_n = (int)(From.y + direction[1] * bestDistparity + 0.5);
+
+		nn = NN[LKArg.DIC_Algo];
+		nExtraParas = 2;
+
+		for (i = 0; i < nn; i++)
+			p[i] = 0.0, ip[i] = 0.0;
+		if (LKArg.DIC_Algo == 0)
+			p[nn - 2] = 1.0, p[nn - 1] = 0.0;
+
+		bool printout = false; FILE *fp1 = 0, *fp2 = 0;
+		if (printout)
+		{
+			fp1 = fopen("C:/temp/src.txt", "w+");
+			for (int mm = -hsubset; mm <= hsubset; mm++)
+			{
+				for (int nn = -hsubset; nn <= hsubset; nn++)
+				{
+					fprintf(fp1, "%.2f ", tPatch[(mm + hsubset)*patchS + (nn + hsubset)]);
+				}
+				fprintf(fp1, "%\n");
+			}
+			fclose(fp1);
+		}
+
+		int piis, pixel_increment_in_subset[] = { 1, 2, 2, 3 };
+		double DIC_Coeff_min = 9e9;
+		/// Iteration: Begin
+		bool Break_Flag = false;
+		for (k = 0; k < LKArg.IterMax; k++)
+		{
+			m = -1;
+			t_1 = 0.0, t_2 = 0.0;
+			for (iii = 0; iii < nn*nn; iii++)
+				AA[iii] = 0.0;
+			for (iii = 0; iii < nn; iii++)
+				BB[iii] = 0.0;
+
+			a = p[nn - 2], b = p[nn - 1];
+			if (printout)
+				fp2 = fopen("C:/temp/tar.txt", "w+");
+
+			piis = pixel_increment_in_subset[LKArg.Analysis_Speed];	// Depending on algorithms, Analysis_Speed may be changed during the iteration loop.
+			for (jjj = -hsubset; jjj <= hsubset; jjj += piis)
+			{
+				for (iii = -hsubset; iii <= hsubset; iii += piis)
+				{
+					ii = x_n + iii, jj = y_n + jjj;
+					if (ii<0 || ii>(width1 - 1) || jj<0 || jj>(height1 - 1))
+						continue;
+
+					II = ii + p[0] + p[2] * iii + p[3] * jjj, JJ = jj + p[1];
+					if (II<0.0 || II>(double)(width2 - 1) - (1e-10) || JJ<0.0 || JJ>(double)(height2 - 1) - (1e-10))
+						continue;
+
+					for (kk = 0; kk < nchannels; kk++)
+					{
+						Get_Value_Spline(Img2Para + kk*length2, width2, height2, II, JJ, S, 0, LKArg.InterpAlgo);
+
+						m_F = tPatch[(jjj + hsubset)*patchS + (iii + hsubset) + kk*patchLength];
+						m_G = S[0], gx = S[1], gy = S[2];
+						m++;
+
+						if (LKArg.DIC_Algo == 0)
+						{
+							t_3 = a*m_G + b - m_F, t_4 = a;
+							t_1 += t_3*t_3, t_2 += m_F*m_F;
+
+							t_5 = t_4*gx, t_6 = t_4*gy;
+							if (LKArg.DIC_Algo == 0)
+								CC[0] = t_5, CC[1] = t_6, CC[2] = t_5*iii, CC[3] = t_5*jjj, CC[4] = m_G, CC[5] = 1.0;
+
+							for (j = 0; j < nn; j++)
+							{
+								BB[j] += t_3*CC[j];
+								for (i = 0; i < nn; i++)
+									AA[j*nn + i] += CC[i] * CC[j];
+							}
+						}
+						else
+						{
+							Znssd_reqd[6 * m + 0] = m_F, Znssd_reqd[6 * m + 1] = m_G;
+							Znssd_reqd[6 * m + 2] = gx, Znssd_reqd[6 * m + 3] = gy;
+							Znssd_reqd[6 * m + 4] = (double)iii, Znssd_reqd[6 * m + 5] = (double)jjj;
+							t_1 += m_F, t_2 += m_G;
+						}
+
+						if (printout)
+							fprintf(fp2, "%.2f ", m_G);
+					}
+				}
+				if (printout)
+					fprintf(fp2, "\n");
+			}
+			if (printout)
+				fclose(fp2);
+
+			if (LKArg.DIC_Algo == 0)
+				DIC_Coeff = t_1 / t_2;
+			else
+			{
+				if (k == 0)
+				{
+					t_f = t_1 / (m + 1);
+					t_1 = 0.0;
+					for (iii = 0; iii <= m; iii++)
+					{
+						t_4 = Znssd_reqd[6 * iii + 0] - t_f;
+						t_1 += t_4*t_4;
+					}
+					t_ff = sqrt(t_1);
+				}
+				t_g = t_2 / (m + 1);
+				t_2 = 0.0;
+				for (iii = 0; iii <= m; iii++)
+				{
+					t_5 = Znssd_reqd[6 * iii + 1] - t_g;
+					t_2 += t_5*t_5;
+				}
+				t_2 = sqrt(t_2);
+
+				DIC_Coeff = 0.0;
+				for (iii = 0; iii <= m; iii++)
+				{
+					t_4 = Znssd_reqd[6 * iii + 0] - t_f;
+					t_5 = Znssd_reqd[6 * iii + 1] - t_g;
+					t_6 = t_5 / t_2 - t_4 / t_ff;
+					t_3 = t_6 / t_2;
+					gx = Znssd_reqd[6 * iii + 2], gy = Znssd_reqd[6 * iii + 3];
+					iii_n = Znssd_reqd[6 * iii + 4], jjj_n = Znssd_reqd[6 * iii + 5];
+					CC[0] = gx, CC[1] = gy;
+					CC[2] = gx*iii_n, CC[3] = gx*jjj_n, CC[4] = gy*iii_n, CC[5] = gy*jjj_n;
+					for (j = 0; j < nn; j++)
+					{
+						BB[j] += t_3*CC[j];
+						for (i = 0; i < nn; i++)
+							AA[j*nn + i] += CC[i] * CC[j] / (t_2*t_2);
+					}
+
+					DIC_Coeff += t_6*t_6;
+				}
+			}
+
+			if (!IsNumber(DIC_Coeff))
+				return 9e9;
+			if (!IsFiniteNumber(DIC_Coeff))
+				return 9e9;
+
+			QR_Solution_Double(AA, BB, nn, nn);
+			for (iii = 0; iii < nn; iii++)
+				p[iii] -= BB[iii];
+
+			if (DIC_Coeff < DIC_Coeff_min)	// If the iteration does not converge, this can be helpful
+			{
+				DIC_Coeff_min = DIC_Coeff;
+				for (iii = 0; iii < nn; iii++)
+					p_best[iii] = p[iii];
+				if (!IsNumber(p[0]) || !IsNumber(p[1]))
+					return 9e9;
+			}
+
+			if (LKArg.DIC_Algo == 0)
+			{
+				if (abs(p[0] - ip[0]) > hsubset || abs(p[1] - ip[1]) > hsubset)
+					return 9e9;
+				if (fabs(BB[0]) < LKArg.Convergence_Criteria && fabs(BB[1]) < conv_crit_1)
+				{
+					for (iii = 2; iii < nn - nExtraParas; iii++)
+						if (fabs(BB[iii]) > conv_crit_2)
+							break;
+					if (iii == nn - nExtraParas)
+						if (Analysis_Speed == 1)	// For Analysis_Speed==1, need to run a full "normal speed" analysis
+							Analysis_Speed = 0;
+						else
+							Break_Flag = true;
+				}
+			}
+			else
+			{
+				if (fabs(BB[0]) < conv_crit_1 && fabs(BB[1]) < conv_crit_1)
+				{
+					for (iii = 2; iii < nn; iii++)
+					{
+						if (fabs(BB[iii]) > conv_crit_2)
+							break;
+					}
+					if (iii == nn)
+						Break_Flag = true;
+				}
+			}
+
+			if (Break_Flag)
+				break;
+		}
+		if (k < 1)
+			k = 1;
+		/// Iteration: End
+
+		if (LKArg.DIC_Algo == 0)
+		{
+			int m = 0;
+			double t_1, t_2, t_3, t_4, t_5, t_f = 0.0, t_g = 0.0;
+			if (printout)
+				fp2 = fopen("C:/temp/tar.txt", "w+");
+			for (jjj = -hsubset; jjj <= hsubset; jjj++)
+			{
+				for (iii = -hsubset; iii <= hsubset; iii++)
+				{
+					ii = x_n + iii, jj = y_n + jjj;
+					II = ii + p[0] + p[2] * iii + p[3] * jjj, JJ = jj + p[1];
+					if (II<0.0 || II>(double)(width2 - 1) - (1e-10) || JJ<0.0 || JJ>(double)(height2 - 1) - (1e-10))
+						continue;
+
+					for (kk = 0; kk < nchannels; kk++)
+					{
+						Get_Value_Spline(Img2Para + kk*length2, width2, height2, II, JJ, S, -1, LKArg.InterpAlgo);
+						if (printout)
+							fprintf(fp2, "%.4f ", S[0]);
+
+						Znssd_reqd[2 * m] = tPatch[(jjj + hsubset)*patchS + (iii + hsubset) + kk*patchLength], Znssd_reqd[2 * m + 1] = S[0];
+						t_f += Znssd_reqd[2 * m], t_g += Znssd_reqd[2 * m + 1];
+						m++;
+					}
+				}
+				if (printout)
+					fprintf(fp2, "\n");
+			}
+			if (printout)
+				fclose(fp2);
+
+			t_f = t_f / m, t_g = t_g / m;
+			t_1 = 0.0, t_2 = 0.0, t_3 = 0.0;
+			for (i = 0; i < m; i++)
+			{
+				t_4 = Znssd_reqd[2 * i] - t_f, t_5 = Znssd_reqd[2 * i + 1] - t_g;
+				t_1 += 1.0*t_4*t_5, t_2 += 1.0*t_4*t_4, t_3 += 1.0*t_5*t_5;
+			}
+
+			t_2 = sqrt(t_2*t_3);
+			if (t_2 < 1e-10)
+				t_2 = 1e-10;
+
+			zncc = t_1 / t_2; //This is the zncc score
+			if (abs(zncc) < LKArg.ZNCCThreshold)
+				DIC_Coeff_min = 1.0;
+		}
+		else
+			zncc = DIC_Coeff_min;
+
+		if (abs(p_best[0] - ip[0]) > hsubset || abs(p_best[1] - ip[1]) > hsubset || p_best[0] != p_best[0] || p_best[1] != p_best[1])
+			return 0.0;
+		if (zncc < LKArg.ZNCCThreshold - 0.05)
+			return zncc;
+		else
+		{
+			Target.x = x_n + p[0], Target.y = y_n + p[1];
+			return zncc;
+		}
+	}
+
+	return znccMax;
+}
+int GreedyMatching2(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_calculated, bool *tROI, CPoint2 *SparseCorres1, CPoint2 *SparseCorres2, int nSeedPoints, LKParameters LKArg, int nchannels, int width1, int height1, int width2, int height2, double Scale, double *Epipole, float *WarpingParas, double *Pmat, double *K, double *distortion, double triThresh)
 {
 	int ii, kk, cp;
 	bool debug = false, passed;
@@ -5880,8 +6666,8 @@ int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_ca
 	if (Gsigma > 0.0)
 		for (kk = 0; kk < nchannels; kk++)
 		{
-		Gaussian_smooth(Img1 + kk*length1, lpImageData + kk*length1, height1, width1, 255.0, Gsigma);
-		Gaussian_smooth(Img2 + kk*length2, lpImageData + kk*length2 + nchannels*length1, height2, width2, 255.0, Gsigma);
+			Gaussian_smooth(Img1 + kk*length1, lpImageData + kk*length1, height1, width1, 255.0, Gsigma);
+			Gaussian_smooth(Img2 + kk*length2, lpImageData + kk*length2 + nchannels*length1, height2, width2, 255.0, Gsigma);
 		}
 	else
 	{
@@ -6247,9 +7033,11 @@ int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_ca
 			{
 				ImgPt[0] = lpUV_xy[2 * UV_index], ImgPt[1] = lpUV_xy[2 * UV_index + 1], ImgPt[2] = 1.0;
 				cross_product(ImgPt, Epipole, epipline);
-				direction[0] = -epipline[1] / sqrt(epipline[0] * epipline[0] + epipline[1] * epipline[1]);
-				direction[1] = epipline[0] / sqrt(epipline[0] * epipline[0] + epipline[1] * epipline[1]);
-				UV_Guess[0] = 0.5*((SparseCorres2[kk].x - SparseCorres1[kk].x) / direction[0] + (SparseCorres2[kk].y - SparseCorres1[kk].y) / direction[1]);
+				//direction[0] = -epipline[1] / sqrt(epipline[0] * epipline[0] + epipline[1] * epipline[1]), direction[1] = epipline[0] / sqrt(epipline[0] * epipline[0] + epipline[1] * epipline[1]);
+				//UV_Guess[0] = 0.5*((SparseCorres2[kk].x - SparseCorres1[kk].x) / direction[0] + (SparseCorres2[kk].y - SparseCorres1[kk].y) / direction[1]);
+
+				direction[0] = 1.0, direction[1] = 0.0; //supreeth
+				UV_Guess[0] = (SparseCorres2[kk].x - SparseCorres1[kk].x);
 				if (DIC_Algo == 1)
 				{
 					UV_Guess[1] = Scale - 1.0, UV_Guess[2] = 0.0, UV_Guess[3] = 0.0, UV_Guess[4] = Scale - 1.0;
@@ -6274,18 +7062,18 @@ int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_ca
 
 			if (coeff < PSSDab_thresh)
 			{
-				if (distortion != NULL)
+				/*if (distortion != NULL) Supreeth
 				{
-					passed = false;
-					CorresPoints[0].x = lpUV[UV_index] + x, CorresPoints[0].y = lpUV[UV_index + UV_length] + y, CorresPoints[1].x = x, CorresPoints[1].y = y;
-					MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
-					if (passed)
-						Coeff[M] = coeff, Tindex[M] = UV_index;
-					else
-						M--;
-				}
+				passed = false;
+				CorresPoints[0].x = lpUV[UV_index] + x, CorresPoints[0].y = lpUV[UV_index + UV_length] + y, CorresPoints[1].x = x, CorresPoints[1].y = y;
+				MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
+				if (passed)
+				Coeff[M] = coeff, Tindex[M] = UV_index;
 				else
-					Coeff[M] = coeff, Tindex[M] = UV_index;
+				M--;
+				}
+				else*/
+				Coeff[M] = coeff, Tindex[M] = UV_index;
 			}
 			else
 				M--;
@@ -6332,15 +7120,15 @@ int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_ca
 					coeff = DIC_Calculation(UV_index_n + 1, UV_index, lpImageData, Para, lpUV, lpUV_xy, Znssd_reqd, tROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, PSSDab_thresh, LKArg.ZNCCThreshold, LKArg.ssigThresh, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, InterpAlgo, Analysis_Speed, firstpoint, direction, NULL, NULL, false, LKArg.checkZNCC);
 					if (coeff < PSSDab_thresh)
 					{
-						if (distortion != NULL)
+						/*if (distortion != NULL) Supreeth
 						{
-							passed = false;
-							CorresPoints[0].x = lpUV[UV_index_n + 1] + lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[0].y = lpUV[UV_index_n + 1 + UV_length] + lpUV_xy[2 * (UV_index_n + 1) + 1];
-							CorresPoints[1].x = lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[1].y = lpUV_xy[2 * (UV_index_n + 1) + 1];
-							MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
+						passed = false;
+						CorresPoints[0].x = lpUV[UV_index_n + 1] + lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[0].y = lpUV[UV_index_n + 1 + UV_length] + lpUV_xy[2 * (UV_index_n + 1) + 1];
+						CorresPoints[1].x = lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[1].y = lpUV_xy[2 * (UV_index_n + 1) + 1];
+						MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
 						}
-						else
-							passed = true;
+						else*/
+						passed = true;
 						if (passed)
 						{
 							cp++, M++, UV_index_n++;
@@ -6377,15 +7165,15 @@ int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_ca
 					coeff = DIC_Calculation(UV_index_n + 1, UV_index, lpImageData, Para, lpUV, lpUV_xy, Znssd_reqd, tROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, PSSDab_thresh, LKArg.ZNCCThreshold, LKArg.ssigThresh, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, InterpAlgo, Analysis_Speed, firstpoint, direction, NULL, NULL, false, LKArg.checkZNCC);
 					if (coeff < PSSDab_thresh)
 					{
-						if (distortion != NULL)
+						/*if (distortion != NULL) Supreeth
 						{
-							passed = false;
-							CorresPoints[0].x = lpUV[UV_index_n + 1] + lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[0].y = lpUV[UV_index_n + 1 + UV_length] + lpUV_xy[2 * (UV_index_n + 1) + 1];
-							CorresPoints[1].x = lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[1].y = lpUV_xy[2 * (UV_index_n + 1) + 1];
-							MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
+						passed = false;
+						CorresPoints[0].x = lpUV[UV_index_n + 1] + lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[0].y = lpUV[UV_index_n + 1 + UV_length] + lpUV_xy[2 * (UV_index_n + 1) + 1];
+						CorresPoints[1].x = lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[1].y = lpUV_xy[2 * (UV_index_n + 1) + 1];
+						MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
 						}
-						else
-							passed = true;
+						else*/
+						passed = true;
 						if (passed)
 						{
 							cp++, M++, UV_index_n++;
@@ -6421,15 +7209,15 @@ int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_ca
 					coeff = DIC_Calculation(UV_index_n + 1, UV_index, lpImageData, Para, lpUV, lpUV_xy, Znssd_reqd, tROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, PSSDab_thresh, LKArg.ZNCCThreshold, LKArg.ssigThresh, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, InterpAlgo, Analysis_Speed, firstpoint, direction, NULL, NULL, false, LKArg.checkZNCC);
 					if (coeff < PSSDab_thresh)
 					{
-						if (distortion != NULL)
+						/*if (distortion != NULL) Supreeth
 						{
-							passed = false;
-							CorresPoints[0].x = lpUV[UV_index_n + 1] + lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[0].y = lpUV[UV_index_n + 1 + UV_length] + lpUV_xy[2 * (UV_index_n + 1) + 1];
-							CorresPoints[1].x = lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[1].y = lpUV_xy[2 * (UV_index_n + 1) + 1];
-							MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
+						passed = false;
+						CorresPoints[0].x = lpUV[UV_index_n + 1] + lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[0].y = lpUV[UV_index_n + 1 + UV_length] + lpUV_xy[2 * (UV_index_n + 1) + 1];
+						CorresPoints[1].x = lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[1].y = lpUV_xy[2 * (UV_index_n + 1) + 1];
+						MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
 						}
-						else
-							passed = true;
+						else*/
+						passed = true;
 						if (passed)
 						{
 							cp++, M++, UV_index_n++;
@@ -6465,15 +7253,15 @@ int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_ca
 					coeff = DIC_Calculation(UV_index_n + 1, UV_index, lpImageData, Para, lpUV, lpUV_xy, Znssd_reqd, tROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, PSSDab_thresh, LKArg.ZNCCThreshold, LKArg.ssigThresh, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, InterpAlgo, Analysis_Speed, firstpoint, direction, NULL, NULL, false, LKArg.checkZNCC);
 					if (coeff < PSSDab_thresh)
 					{
-						if (distortion != NULL)
+						/*if (distortion != NULL) Supreeth
 						{
-							passed = false;
-							CorresPoints[0].x = lpUV[UV_index_n + 1] + lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[0].y = lpUV[UV_index_n + 1 + UV_length] + lpUV_xy[2 * (UV_index_n + 1) + 1];
-							CorresPoints[1].x = lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[1].y = lpUV_xy[2 * (UV_index_n + 1) + 1];
-							MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
+						passed = false;
+						CorresPoints[0].x = lpUV[UV_index_n + 1] + lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[0].y = lpUV[UV_index_n + 1 + UV_length] + lpUV_xy[2 * (UV_index_n + 1) + 1];
+						CorresPoints[1].x = lpUV_xy[2 * (UV_index_n + 1)], CorresPoints[1].y = lpUV_xy[2 * (UV_index_n + 1) + 1];
+						MultiViewGeoVerify(CorresPoints, Pmat, K, distortion, &passed, width1, height1, width2, height2, 2, 1, triThresh, tCorresPoints, ttCorresPoints, DeviceMask, tK, tdistortion, tP, A, B);
 						}
-						else
-							passed = true;
+						else*/
+						passed = true;
 						if (passed)
 						{
 							cp++, M++, UV_index_n++;
@@ -6530,6 +7318,288 @@ int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_ca
 			displacement[lpUV_xy[2 * ii] + lpUV_xy[2 * ii + 1] * width1].x = lpUV[ii];
 			displacement[lpUV_xy[2 * ii] + lpUV_xy[2 * ii + 1] * width1].y = lpUV[UV_length + ii];
 		}
+	}
+
+	delete[]Tindex, delete[]Coeff, delete[]Znssd_reqd;
+	delete[]Para, delete[]lpUV_xy, delete[]lpResult_UV, delete[]lpUV;
+	delete[]PointPerSeed, delete[]lpImageData, delete[]iteration_check;
+
+	return 0;
+}
+int GreedyMatching(char *Img1, char *Img2, CPoint2 *displacement, bool *lpROI_calculated, bool *tROI, CPoint2 *SparseCorres1, CPoint2 *SparseCorres2, int nSeedPoints, LKParameters LKArg, int nchannels, int width1, int height1, int width2, int height2, double Scale, double *Epipole, float *WarpingParas, double *Pmat, double *K, double *distortion, double triThresh)
+{
+	//4 supreeth
+	int ii, kk, cp;
+	bool debug = false, passed;
+	int length1 = width1*height1, length2 = width2*height2;
+	double *lpImageData = new double[nchannels*(length1 + length2)];
+	double *lpResult_UV = new double[length1 + length2];
+	for (ii = 0; ii < length1 + length2; ii++)
+		lpResult_UV[ii] = 0.0;
+
+	int hsubset = LKArg.hsubset, DIC_Algo = LKArg.DIC_Algo, step = LKArg.step, Incomplete_Subset_Handling = LKArg.Incomplete_Subset_Handling, InterpAlgo = LKArg.InterpAlgo;
+	int Convergence_Criteria = LKArg.Convergence_Criteria, Iter_Max = LKArg.IterMax, Analysis_Speed = LKArg.Analysis_Speed;
+	double Gsigma = LKArg.Gsigma, PSSDab_thresh = LKArg.PSSDab_thresh, ZNCCThresh = LKArg.ZNCCThreshold;
+
+	// Prepare image data
+	if (Gsigma > 0.0)
+		for (kk = 0; kk < nchannels; kk++)
+		{
+			Gaussian_smooth(Img1 + kk*length1, lpImageData + kk*length1, height1, width1, 255.0, Gsigma);
+			Gaussian_smooth(Img2 + kk*length2, lpImageData + kk*length2 + nchannels*length1, height2, width2, 255.0, Gsigma);
+		}
+	else
+	{
+		for (kk = 0; kk < nchannels; kk++)
+		{
+			for (ii = 0; ii < length1; ii++)
+				lpImageData[ii + kk*length1] = (double)((int)((unsigned char)(Img1[ii + kk*length1])));
+			for (ii = 0; ii < length2; ii++)
+				lpImageData[nchannels*length1 + ii] = (double)((int)((unsigned char)(Img2[ii + kk*length2])));
+		}
+	}
+
+	int m, M, x, y, UV_index, UV_index_n;
+	double vr_temp[] = { 0.0, 0.65, 0.8, 0.95 };
+	double validity_ratio = vr_temp[Incomplete_Subset_Handling];
+	double conv_crit_1 = 1.0 / pow(10.0, Convergence_Criteria + 2), conv_crit_2 = conv_crit_1*0.01;
+	double  direction[2];
+
+	if (DIC_Algo == 0)
+		conv_crit_1 /= 100.0, conv_crit_2 /= 100.0;
+	else if (DIC_Algo == 1)
+		conv_crit_1 /= 1000.0;
+
+	int total_valid_points = 0, total_calc_points = 0;
+	for (ii = 0; ii < length1; ii++)
+		if (tROI[ii]) // 1 - Valid, 0 - Other
+			total_valid_points++;
+	if (total_valid_points == 0)
+	{
+		delete[]lpImageData;
+		delete[]lpResult_UV;
+		return 1;
+	}
+
+	int NN[] = { 6, 4 }, nParas = NN[DIC_Algo];
+	int UV_length = length1;	// The actual value (i.e., total_calc_points, to be determined later) should be smaller.
+	double *lpUV = new double[nParas*UV_length];	// U, V, Ux, Uy, Vx, Vy, Uxx, Uyy, Uxy, Vxx, Vyy, Vxy, (a) and b. or alpha, (a), and b
+	int *lpUV_xy = new int[2 * UV_length];	// Coordinates of the points corresponding to lpUV
+
+	double *Znssd_reqd = new double[6 * (2 * hsubset + 1)*(2 * hsubset + 1)*nchannels];
+
+	double *Coeff = new double[UV_length];
+	int *Tindex = new int[UV_length];
+
+	double *Para = new double[(length1 + length2)*nchannels];
+	for (kk = 0; kk < nchannels; kk++)
+	{
+		Generate_Para_Spline(lpImageData + kk*length1, Para + kk*length1, width1, height1, InterpAlgo);
+		Generate_Para_Spline(lpImageData + kk*length2 + nchannels*length1, Para + kk*length2 + nchannels*length1, width2, height2, InterpAlgo);
+	}
+
+	int *iteration_check = new int[Iter_Max];
+	for (m = 0; m < Iter_Max; m++)
+		iteration_check[m] = 0;
+
+	int *PointPerSeed = new int[nSeedPoints];
+	for (ii = 0; ii < nSeedPoints; ii++)
+		PointPerSeed[ii] = 0;
+
+	double start = omp_get_wtime();
+	int percent = 5, increment = 5;
+
+	CPoint startF;
+	CPoint2 CorresPoints[2], tCorresPoints[2], ttCorresPoints[2];
+
+	UV_index = 0;
+	UV_index_n = 0;
+	bool firstpoint = true;
+	double UV_Guess[8], coeff;
+	printf("Expanding from seed points...\n");
+	for (kk = 0; kk < nSeedPoints; kk++)
+	{
+		firstpoint = true;
+		cp = 0, M = 0;
+
+		x = (int)(SparseCorres1[kk].x + 0.5), y = (int)(SparseCorres1[kk].y + 0.5);
+		if (lpROI_calculated[y*width1 + x] || !tROI[y*width1 + x])
+			continue;
+		else
+		{
+			UV_index = UV_index_n;
+			lpUV_xy[2 * UV_index] = (int)(SparseCorres1[kk].x + 0.5);
+			lpUV_xy[2 * UV_index + 1] = (int)(SparseCorres1[kk].y + 0.5);
+
+			UV_Guess[0] = SparseCorres2[kk].x - SparseCorres1[kk].x;
+			UV_Guess[1] = SparseCorres2[kk].y - SparseCorres1[kk].y;
+			UV_Guess[2] = 0.0, UV_Guess[3] = 0.0;
+			UV_Guess[4] = 1.0, UV_Guess[5] = 0.0;
+
+			for (m = 0; m < nParas; m++)
+				lpUV[m*UV_length + UV_index] = UV_Guess[m];
+
+			coeff = DIC_Calculation(UV_index_n, UV_index, lpImageData, Para, lpUV, lpUV_xy, Znssd_reqd, tROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, PSSDab_thresh, LKArg.ZNCCThreshold + 0.035, LKArg.ssigThresh, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, InterpAlgo, Analysis_Speed, firstpoint, direction, NULL, NULL, false, LKArg.checkZNCC);
+			if (WarpingParas != NULL)
+				for (m = 0; m < 2; m++)
+					WarpingParas[lpUV_xy[2 * UV_index] + lpUV_xy[2 * UV_index + 1] * width1 + m*UV_length] = (float)lpUV[UV_index + m*UV_length];
+
+			if (coeff < PSSDab_thresh)
+				Coeff[M] = coeff, Tindex[M] = UV_index;
+			else
+				M--;
+			x = lpUV_xy[2 * UV_index];
+			y = lpUV_xy[2 * UV_index + 1];
+			lpROI_calculated[y*width1 + x] = true;
+			firstpoint = false;
+		}
+
+		while (M >= 0)
+		{
+			if ((100 * (UV_index_n + 1)*step*step / total_valid_points - percent) >= 0)
+			{
+				cout << total_calc_points + cp << " of good points" << endl;
+				double elapsed = omp_get_wtime() - start;
+				cout << "%" << 100 * (UV_index_n + 1)*step*step / total_valid_points << " Time elapsed: " << setw(2) << elapsed <<
+					" Time remaining: " << setw(2) << elapsed / (percent + increment)*(100.0 - percent) << endl;
+				percent += increment;
+			}
+
+			UV_index = Tindex[M];
+			x = lpUV_xy[2 * UV_index], y = lpUV_xy[2 * UV_index + 1];
+			M--; // Remove from the queque
+
+			if ((y + step) < height1 && tROI[(y + step)*width1 + x] && !lpROI_calculated[(y + step)*width1 + x])
+			{
+				if (DIC_CheckPointValidity(tROI, x, y + step, width1, height1, hsubset, validity_ratio))
+				{
+					lpUV_xy[2 * (UV_index_n + 1)] = x;
+					lpUV_xy[2 * (UV_index_n + 1) + 1] = y + step;
+
+					coeff = DIC_Calculation(UV_index_n + 1, UV_index, lpImageData, Para, lpUV, lpUV_xy, Znssd_reqd, tROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, PSSDab_thresh, LKArg.ZNCCThreshold, LKArg.ssigThresh, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, InterpAlgo, Analysis_Speed, firstpoint, direction, NULL, NULL, false, LKArg.checkZNCC);
+					if (coeff < PSSDab_thresh)
+					{
+						passed = true;
+						if (passed)
+						{
+							cp++, M++, UV_index_n++;
+							Coeff[M] = coeff;
+							Tindex[M] = UV_index_n;
+							DIC_AddtoQueue(Coeff, Tindex, M);
+							if (WarpingParas != NULL)
+							{
+								for (m = 0; m < 2; m++)
+									WarpingParas[x + (y + step)*width1 + m*UV_length] = (float)lpUV[UV_index_n + m*UV_length];
+							}
+						}
+					}
+				}
+				lpROI_calculated[(y + step)*width1 + x] = true;
+			}
+			if ((y - step) >= 0 && tROI[(y - step)*width1 + x] && !lpROI_calculated[(y - step)*width1 + x])
+			{
+				if (DIC_CheckPointValidity(tROI, x, y - step, width1, height1, hsubset, validity_ratio))
+				{
+					lpUV_xy[2 * (UV_index_n + 1)] = x;
+					lpUV_xy[2 * (UV_index_n + 1) + 1] = y - step;
+
+					coeff = DIC_Calculation(UV_index_n + 1, UV_index, lpImageData, Para, lpUV, lpUV_xy, Znssd_reqd, tROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, PSSDab_thresh, LKArg.ZNCCThreshold, LKArg.ssigThresh, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, InterpAlgo, Analysis_Speed, firstpoint, direction, NULL, NULL, false, LKArg.checkZNCC);
+					if (coeff < PSSDab_thresh)
+					{
+						passed = true;
+						if (passed)
+						{
+							cp++, M++, UV_index_n++;
+							Coeff[M] = coeff;
+							Tindex[M] = UV_index_n;
+							DIC_AddtoQueue(Coeff, Tindex, M);
+							if (WarpingParas != NULL)
+							{
+								for (m = 0; m < 2; m++)
+									WarpingParas[x + (y - step)*width1 + m*UV_length] = (float)lpUV[UV_index_n + m*UV_length];
+							}
+						}
+					}
+				}
+				lpROI_calculated[(y - step)*width1 + x] = true;
+			}
+			if ((x - step) >= 0 && tROI[y*width1 + x - step] && !lpROI_calculated[y*width1 + x - step])
+			{
+				if (DIC_CheckPointValidity(tROI, x - step, y, width1, height1, hsubset, validity_ratio))
+				{
+					lpUV_xy[2 * (UV_index_n + 1)] = x - step;
+					lpUV_xy[2 * (UV_index_n + 1) + 1] = y;
+
+					coeff = DIC_Calculation(UV_index_n + 1, UV_index, lpImageData, Para, lpUV, lpUV_xy, Znssd_reqd, tROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, PSSDab_thresh, LKArg.ZNCCThreshold, LKArg.ssigThresh, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, InterpAlgo, Analysis_Speed, firstpoint, direction, NULL, NULL, false, LKArg.checkZNCC);
+					if (coeff < PSSDab_thresh)
+					{
+						passed = true;
+						if (passed)
+						{
+							cp++, M++, UV_index_n++;
+							Coeff[M] = coeff;
+							Tindex[M] = UV_index_n;
+							DIC_AddtoQueue(Coeff, Tindex, M);
+							if (WarpingParas != NULL)
+								for (m = 0; m < 2; m++)
+									WarpingParas[x - step + y*width1 + m*UV_length] = (float)lpUV[UV_index_n + m*UV_length];
+						}
+					}
+				}
+				lpROI_calculated[y*width1 + x - step] = true;
+			}
+			if ((x + step) < width1 && tROI[y*width1 + x + step] && !lpROI_calculated[y*width1 + x + step])
+			{
+				if (DIC_CheckPointValidity(tROI, x + step, y, width1, height1, hsubset, validity_ratio))
+				{
+					lpUV_xy[2 * (UV_index_n + 1)] = x + step;
+					lpUV_xy[2 * (UV_index_n + 1) + 1] = y;
+
+					coeff = DIC_Calculation(UV_index_n + 1, UV_index, lpImageData, Para, lpUV, lpUV_xy, Znssd_reqd, tROI, nchannels, width1, height1, width2, height2, UV_length, DIC_Algo, hsubset, step, PSSDab_thresh, LKArg.ZNCCThreshold, LKArg.ssigThresh, Iter_Max, iteration_check, conv_crit_1, conv_crit_2, InterpAlgo, Analysis_Speed, firstpoint, direction, NULL, NULL, false, LKArg.checkZNCC);
+					if (coeff < PSSDab_thresh)
+					{
+						passed = true;
+						if (passed)
+						{
+							cp++, M++, UV_index_n++;
+							Coeff[M] = coeff;
+							Tindex[M] = UV_index_n;
+							DIC_AddtoQueue(Coeff, Tindex, M);
+							if (WarpingParas != NULL)
+								for (m = 0; m < 2; m++)
+									WarpingParas[x + step + y*width1 + m*UV_length] = (float)lpUV[UV_index_n + m*UV_length];
+						}
+					}
+				}
+				lpROI_calculated[y*width1 + x + step] = true;
+			}
+		}
+
+		if (cp > 0)
+			UV_index_n++;
+		PointPerSeed[kk] = cp;
+		total_calc_points += cp;
+	}
+	printf("...%d points growed\n", total_calc_points);
+	//// DIC calculation: End
+
+	for (ii = 0; ii < total_calc_points; ii++)
+	{
+		if (lpUV[ii] != lpUV[ii])
+		{
+			displacement[lpUV_xy[2 * ii] + lpUV_xy[2 * ii + 1] * width1].x = 0.0;
+			displacement[lpUV_xy[2 * ii] + lpUV_xy[2 * ii + 1] * width1].y = 0.0;
+			continue;
+		}
+		if (lpUV[UV_length + ii] != lpUV[UV_length + ii])
+		{
+			displacement[lpUV_xy[2 * ii] + lpUV_xy[2 * ii + 1] * width1].x = 0.0;
+			displacement[lpUV_xy[2 * ii] + lpUV_xy[2 * ii + 1] * width1].y = 0.0;
+			continue;
+		}
+
+		displacement[lpUV_xy[2 * ii] + lpUV_xy[2 * ii + 1] * width1].x = lpUV[ii];
+		displacement[lpUV_xy[2 * ii] + lpUV_xy[2 * ii + 1] * width1].y = lpUV[UV_length + ii];
 	}
 
 	delete[]Tindex, delete[]Coeff, delete[]Znssd_reqd;
@@ -7946,13 +9016,13 @@ int TVL1OpticalFlowDriver(int frameID, int frameJump, int nCams, int width, int 
 	tvl1->set("iterations", argGF.iterations);
 	tvl1->set("nscales", argGF.nscales);
 	tvl1->set("warps", argGF.warps);
-	tvl1->set("useInitialFlow", true);
+	tvl1->set("useInitialFlow", false);
 
 	double start = omp_get_wtime();
 	for (jj = 0; jj < nCams; jj++)
 	{
-		sprintf(Fname1, "%s/Image/RandomTextureMap/C1_%05d.png", PATH, 1);
-		sprintf(Fname2, "%s/Image/RandomTextureMap/C1_%05d.png", PATH, frameID + frameJump);
+		sprintf(Fname1, "%s/%d/%d.png", PATH, jj,frameID);
+		sprintf(Fname2, "%s/%d/%d.png", PATH, jj, frameID + frameJump);
 		frame0 = imread(Fname1, IMREAD_GRAYSCALE); //only accept grayscale image
 		frame1 = imread(Fname2, IMREAD_GRAYSCALE); //only accept grayscale image
 
@@ -7969,12 +9039,12 @@ int TVL1OpticalFlowDriver(int frameID, int frameJump, int nCams, int width, int 
 		//Foward flow
 		if (forward)
 		{
-			cout << "Compute forward flow for Cam " << jj + 1 << endl;
+			cout << "Compute forward flow for Cam " << jj<< endl;
 			tvl1->calc(frame0, frame1, flow);
 			cout << "...finished in " << omp_get_wtime() - start << endl;
 
-			sprintf(Fname1, "%s/Flow/FX%d_%05d.dat", PATH, jj + 1, frameID);
-			sprintf(Fname2, "%s/Flow/FY%d_%05d.dat", PATH, jj + 1, frameID);
+			sprintf(Fname1, "%s/%d/FX_%d.dat", PATH, jj, frameID);
+			sprintf(Fname2, "%s/%d/FY_%d.dat", PATH, jj, frameID);
 			cvFlowtoFloat(flow, fx, fy);
 			if (!WriteFlowBinary(Fname1, Fname2, fx, fy, width, height))
 			{
@@ -10834,10 +11904,10 @@ void UpdateIllumTextureImages(char *PATH, bool silent, int frameID, int mode, in
 				{
 					if (ROI != NULL &&ROI[ii + jj*width])
 						for (kk = 0; kk < nchannels; kk++)
-							LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(255);
+							LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(0);
 					else
 						for (kk = 0; kk < nchannels; kk++)
-							LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(255);
+							LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(0);
 
 					if (abs(ILWarping[ii + jj*width + offset]) + abs(ILWarping[ii + jj*width + length + offset]) > 0.01)
 					{
@@ -10871,10 +11941,10 @@ void UpdateIllumTextureImages(char *PATH, bool silent, int frameID, int mode, in
 			{
 				if (ROI != NULL &&ROI[ii + jj*width])
 					for (kk = 0; kk < nchannels; kk++)
-						LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(255);
+						LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(0);
 				else
 					for (kk = 0; kk < nchannels; kk++)
-						LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(255);
+						LuminanceImg[ii + jj*width + kk*length] = (unsigned char)(0);
 
 				if (abs(ILWarping[ii + jj*width]) + abs(ILWarping[ii + jj*width + length]) > 0.01)
 				{
@@ -11819,8 +12889,8 @@ int OptimizeTextIIllum(int ProID, int x, int y, int offx, int offy, int &cp, int
 					else if (mode == 1)
 						if (!IsLocalWarpAvail(previousTWarping, TWp, x + offx, y + offy, foundP, u, v, rangeT, width, height, PrecomSearchR[x + offx + (y + offy)*width]))
 						{
-						visitedPoints[x + offx + (y + offy)*width] += 1;
-						return success; // Does not find any closed by points. 
+							visitedPoints[x + offx + (y + offy)*width] += 1;
+							return success; // Does not find any closed by points. 
 						}
 						else
 						{
@@ -12194,17 +13264,17 @@ int IllumTextureSeperation(int frameID, int ProID, char *PATH, char *TPATH, Illu
 		if (Fimgs.nPros == 1)
 			for (jj = 0; jj < height; jj++)
 			{
-			for (ii = 0; ii < width; ii++)
-			{
-				if (abs(ILWarping[ii + jj*width]) < 0.001 && abs(ILWarping[ii + jj*width + length]) < 0.001)
+				for (ii = 0; ii < width; ii++)
 				{
-					for (ll = 0; ll < 6; ll++)
-						TWarping[ii + jj*width + ll*length] = 0.0;
-					PhotoAdj[ii + jj*width] = intentsityFalloff;
-					for (ll = 1; ll < 3; ll++)
-						PhotoAdj[ii + jj*width + ll*length] = 0.0;
+					if (abs(ILWarping[ii + jj*width]) < 0.001 && abs(ILWarping[ii + jj*width + length]) < 0.001)
+					{
+						for (ll = 0; ll < 6; ll++)
+							TWarping[ii + jj*width + ll*length] = 0.0;
+						PhotoAdj[ii + jj*width] = intentsityFalloff;
+						for (ll = 1; ll < 3; ll++)
+							PhotoAdj[ii + jj*width + ll*length] = 0.0;
+					}
 				}
-			}
 			}
 	}
 
@@ -14876,7 +15946,7 @@ int TwoIllumCase(double &score, int x, int y, int nx, int ny, int seedtype, doub
 		for (ll = 0; ll < 8; ll++)
 			ILWp[ll] = iWp[ll];
 		for (ll = 0; ll < 2; ll++)
-			startP[ll].x = iStartP[2 * ll], startP[ll].y = iStartP[2 * ll + 1],	Pcom[ll] = 0.3, rangeS[ll] = irangeS[ll];
+			startP[ll].x = iStartP[2 * ll], startP[ll].y = iStartP[2 * ll + 1], Pcom[ll] = 0.3, rangeS[ll] = irangeS[ll];
 	}
 	else
 	{
@@ -16777,13 +17847,13 @@ int SVSR_Smother(double *depth, CPoint2 *IJ, bool *LayerROI, int *SmoothingMask,
 	for (ll = 0; ll < 2; ll++)
 		for (jj = 0; jj < depthH; jj++)
 		{
-		for (ii = 0; ii < depthW; ii++)
-		{
-			if (mask[ii + jj*depthW] == 0)
-				depth[ii + jj*depthW + ll*ngrid] = idepth[ii + jj*depthW + ll*ngrid];
-			//fprintf(fp, "%d ", mask[ii+jj*depthW]);
-		}
-		//fprintf(fp, "\n");
+			for (ii = 0; ii < depthW; ii++)
+			{
+				if (mask[ii + jj*depthW] == 0)
+					depth[ii + jj*depthW + ll*ngrid] = idepth[ii + jj*depthW + ll*ngrid];
+				//fprintf(fp, "%d ", mask[ii+jj*depthW]);
+			}
+			//fprintf(fp, "\n");
 		}
 	//fclose(fp);
 
