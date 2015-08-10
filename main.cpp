@@ -597,7 +597,7 @@ int CamProMatchingBK(char *PATH, int nCams, int nPros, int frameID, int width, i
 int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int height, int pwidth, int pheight, int nchannels, LKParameters LKArg, CPoint *ROI, bool CheckMatching = false, bool FlowVerification = false, double triThresh = 2.0, bool saveWarping = false, bool Simulation = false)
 {
 	//Double check checker size!!!
-	int ii, jj, kk, ll, camID, proID;
+	int ii, jj, kk, ll, camID;
 	int length = width*height, plength = pwidth*pheight;
 
 	int  step = LKArg.step, hsubset = LKArg.hsubset;
@@ -901,7 +901,7 @@ int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int
 			for (ii = 0; ii < width; ii++)
 			{
 				nvalidViews = 0;
-				for (proID = 0; proID < nPros; proID++)
+				for (int proID = 0; proID < nPros; proID++)
 				{
 					validView[proID] = 0;
 					if (abs(WarpingParas[ii + jj*width + 6 * proID*length]) + abs(WarpingParas[ii + jj*width + (1 + 6 * proID)*length]) > 0.001)
@@ -963,7 +963,7 @@ int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int
 		}
 		fclose(fp);
 
-		for (proID = 0; proID < nPros; proID++)
+		for (int proID = 0; proID < nPros; proID++)
 		{
 			for (ii = 0; ii < 6; ii++)
 			{
@@ -988,7 +988,7 @@ int CamProMatching(char *PATH, int nCams, int nPros, int frameID, int width, int
 int CamProMatching2(char *PATH, int nCams, int nPros, int frameID, int width, int height, int pwidth, int pheight, int nchannels, LKParameters LKArg, CPoint *ROI, bool CheckMatching = false, bool FlowVerification = false, double triThresh = 2.0, bool saveWarping = false, bool Simulation = false)
 {
 	//Double check checker size!!!
-	int ii, jj, kk, ll, camID, proID;
+	int ii, jj, kk, camID;
 	int length = width*height, plength = pwidth*pheight;
 
 	int  step = LKArg.step, hsubset = LKArg.hsubset;
@@ -1025,7 +1025,7 @@ int CamProMatching2(char *PATH, int nCams, int nPros, int frameID, int width, in
 			WarpingParas[ii] = 0.0f;
 	}
 
- 	for (camID = 0; camID < nCams; camID++)
+	for (camID = 0; camID < nCams; camID++)
 	{
 #pragma omp critical
 		cout << "Run CamPro on frame " << frameID << " of Cam #" << camID + 1;
@@ -1206,18 +1206,18 @@ int CamProMatching2(char *PATH, int nCams, int nPros, int frameID, int width, in
 				distortion[ii] = DInfo.distortion[13 * proID + ii], distortion[13 + ii] = DInfo.distortion[13 * (camID + nPros) + ii];
 
 			GreedyMatching(Img1, Img2, disparity, lpROI_calculated, cROI, SparseCorres1, SparseCorres2, nSeedPoints, LKArg, nchannels, width, height, pwidth, pheight, CamProScale[camID], ProEpipole, WarpingParas + 6 * proID*length, Pmat, K, distortion, triThresh);
-			
+
 			int maxdisparity = 70;
 			double direction[2] = { 1, 0 };
 			double *SImg1 = new double[width*height*nchannels];
 			double *SImg2 = new double[pwidth*pheight*nchannels];
 			double *Img2Para = new double[pwidth*pheight*nchannels];
-			
+
 			if (Gsigma > 0.0)
 			{
 				for (kk = 0; kk < nchannels; kk++)
 				{
-					Gaussian_smooth(Img1 + kk*width*height, SImg1 + kk*width*height, height, width, 255.0, Gsigma/sqrt(2));
+					Gaussian_smooth(Img1 + kk*width*height, SImg1 + kk*width*height, height, width, 255.0, Gsigma / sqrt(2));
 					Gaussian_smooth(Img2 + kk*pwidth*pheight, SImg2 + kk*pwidth*pheight, pheight, pwidth, 255.0, Gsigma*sqrt(2));
 				}
 			}
@@ -1234,7 +1234,7 @@ int CamProMatching2(char *PATH, int nCams, int nPros, int frameID, int width, in
 			for (kk = 0; kk < nchannels; kk++)
 				Generate_Para_Spline(SImg2 + kk*pwidth*pheight, Img2Para + kk*pwidth*pheight, pwidth, pheight, LKArg.InterpAlgo);
 
-			double *tPatch = new double[2*nchannels*(LKArg.hsubset * 2 + 1)*(LKArg.hsubset * 2 + 1)],
+			double *tPatch = new double[2 * nchannels*(LKArg.hsubset * 2 + 1)*(LKArg.hsubset * 2 + 1)],
 				*tZNCC = new double[2 * (LKArg.hsubset * 2 + 1)*(LKArg.hsubset * 2 + 1)*nchannels],
 				*Znssd_reqd = new double[6 * (2 * hsubset + 1)*(2 * hsubset + 1)*nchannels];
 
@@ -1256,7 +1256,7 @@ int CamProMatching2(char *PATH, int nCams, int nPros, int frameID, int width, in
 			}
 
 			delete[]SImg1, delete[]SImg2, delete[]Img2Para;
-			delete[]tPatch, delete []tZNCC, delete []Znssd_reqd;
+			delete[]tPatch, delete[]tZNCC, delete[]Znssd_reqd;
 
 			if (FlowVerification)
 			{
@@ -1283,12 +1283,12 @@ int CamProMatching2(char *PATH, int nCams, int nPros, int frameID, int width, in
 			}
 		}
 
-		for (proID = 0; proID < nPros; proID++)
+		for (jj = 0; jj < nPros; jj++)
 		{
 			for (ii = 0; ii < 2; ii++)//supreeth
 			{
-				sprintf(Fname, "%s/Results/CamPro/C%dP%dp%d_%05d.dat", PATH, camID + 1, proID + 1, ii, frameID);
-				WriteGridBinary(Fname, WarpingParas + (ii + 6 * proID)*length, width, height);
+				sprintf(Fname, "%s/Results/CamPro/C%dP%dp%d_%05d.dat", PATH, camID + 1, jj + 1, ii, frameID);
+				WriteGridBinary(Fname, WarpingParas + (ii + 6 * jj)*length, width, height);
 			}
 		}
 
@@ -6333,37 +6333,64 @@ int DeleteSeedType(char *PATH)
 	return 0;
 
 }
+
+bool GrabImage(char *fname, double *Img, int &width, int &height, int nchannels, bool silent)
+{
+	Mat view = imread(fname, nchannels == 1 ? 0 : 1);
+	if (view.data == NULL)
+	{
+		if (!silent)
+			cout << "Cannot load: " << fname << endl;
+		return false;
+	}
+	if (Img == NULL)
+	{
+		width = view.cols, height = view.rows;
+		Img = new double[width*height*nchannels];
+	}
+	int length = width*height;
+	for (int kk = 0; kk < nchannels; kk++)
+	{
+		for (int jj = 0; jj < height; jj++)
+			for (int ii = 0; ii < width; ii++)
+				Img[ii + jj*width + kk*length] = (double)(int)view.data[nchannels*ii + jj*nchannels*width + kk];
+	}
+
+	return true;
+}
 int main(int argc, char* argv[])
 {
-	{
-		vector<Point2f> prePt, nPt;
-		prePt.push_back(Point2f(1065.31, 740.36)), prePt.push_back(Point2f(1077.23, 760.63)), prePt.push_back(Point2f(1084.64, 727.66));
-		Mat img1 = imread("c:/temp/1.png", 0);
-		Mat img2 = imread("c:/temp/2.png", 0);
+	/*{
+		int width = 1920, height = 1080, nchannels = 3, length = width*height, patternSize = 27, patternLength = patternSize*patternSize, hsubset = 13;
+		double *Img1 = new double[length * 3];
+		double *Para = new double[length * 3];
+		double *Pattern = new double[patternSize *patternSize * 3];
 
-		int tempPyramidSize[] = { 16, 21, 31 };
-		for (int ii = 0; ii < 3; ii++)
-		{
-			vector<uchar> status;
-			vector<float> err;
-			calcOpticalFlowPyrLK(img1, img2, prePt, nPt, status, err, cvSize(tempPyramidSize[ii], tempPyramidSize[ii]), 2);
-			int b = 0;
-		}
-		int a = 0;
+		char Fname[100];
+		IplImage *view = 0;
+		sprintf(Fname, "E:/Juggling/0/%d.png", 10); GrabImage(Fname, Img1, width, height, nchannels, true);
+		for (int kk = 0; kk < nchannels; kk++)
+		Generate_Para_Spline(Img1 + kk*length, Para + kk*length, width, height, 1);
+
+
+		sprintf(Fname, "E:/Juggling/0/Green.png", 1); GrabImage(Fname, Pattern, patternSize, patternSize, nchannels, true);
+
+		CPoint2 POI; POI.x = 986, POI.y = 335;
+		TMatchingFine_ZNCC(Pattern, patternSize, hsubset, Para, width, height, nchannels, POI, 0, 1, 0.8, 1);
 		return 0;
-	}
+		}*/
 
 	//VisTrack("C:/temp/X");
 	//TrackOpenCVLK(1, 207, "C:/temp/X");
 	//ProjectBinaryCheckRandom("C:/temp", 32, 6);
 	//SURFMatching("C:/temp/oneshot_pattern", "C:/temp/oneshot_rect_gain", true);
-	char DataPATH[] = "C:/temp/S";
+	char DataPATH[] = "E:/ICCV/JumpF/3";
 	char TDataPATH[] = "../../mnt";
 
 	int mode = atoi(argv[1]);
 	bool SimulationMode = false;
 
-	int width = 800, height = 600, pwidth = 800, pheight = 600, nCams = 1, nPros = 1, nchannels = 1, nframes = 2, frameJump = 1;
+	int width = 1280, height = 720, pwidth = 800, pheight = 600, nCams = 1, nPros = 1, nchannels = 1, nframes = 2, frameJump = 1;
 	CPoint ROI[2]; //ROI[0].x = 200, ROI[0].y = height - 980, ROI[1].x = 1350, ROI[1].y = height - 150;
 	//ROI[0].x = 100, ROI[0].y = height-1000, ROI[1].x = 1800, ROI[1].y = height-20;
 	//ROI[0].x = 250, ROI[0].y = 50, ROI[1].x = 1600, ROI[1].y = height - 50;
@@ -6422,17 +6449,17 @@ int main(int argc, char* argv[])
 	}
 	else if (mode == 1)
 	{
-		int forward = 0,//atoi(argv[2]),
-			backward = 1,//atoi(argv[3]);
+		int forward = atoi(argv[2]),
+			backward = atoi(argv[3]),
 			startID = atoi(argv[4]),
 			stopID = atoi(argv[5]); //start  from frame 2 instead of 1
 
 		TVL1Parameters tvl1arg;
-		tvl1arg.lamda = 0.3, tvl1arg.tau = 0.25, tvl1arg.theta = 0.01, tvl1arg.epsilon = 0.005, tvl1arg.iterations = 30, tvl1arg.nscales = 20, tvl1arg.warps = 20;
+		tvl1arg.lamda = 0.5, tvl1arg.tau = 0.25, tvl1arg.theta = 0.01, tvl1arg.epsilon = 0.005, tvl1arg.iterations = 30, tvl1arg.nscales = 30, tvl1arg.warps = 20;
 
 		cout << "Run TVL1 flow from: " << startID << " To: " << stopID << endl;
 		for (int ii = startID; ii <= stopID; ii += frameJump)
-			TVL1OpticalFlowDriver(ii, 0, nCams, width, height, DataPATH, tvl1arg, forward, backward);
+			TVL1OpticalFlowDriver(ii, 1, nCams, width, height, DataPATH, tvl1arg, forward, backward);
 
 		return 0;
 	}

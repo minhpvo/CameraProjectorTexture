@@ -1936,6 +1936,196 @@ double TMatchingFine_ZNCC(double *Pattern, int pattern_size, int hsubset, double
 
 	return 1.0 - 0.5*DIC_Coeff_min;
 }
+double TMatchingFine_ZNCC(double *Pattern, int pattern_size, int hsubset, double *Para, int width, int height, int nchannels, CPoint2 &POI, int advanced_tech, int Convergence_Criteria, double ZNCCthresh, int InterpAlgo, double *Znssd_reqd)
+{
+	int i, j, k, m, ii, jj, kk, iii, jjj, iii2, jjj2;
+	double II, JJ, iii_n, jjj_n, gx, gy, DIC_Coeff, DIC_Coeff_min, t_1, t_2, t_3, t_4, t_5, t_6, m_F, m_G, t_f, t_ff, t_g, S[6];
+	double conv_crit_1 = pow(10.0, -Convergence_Criteria - 2);
+	double conv_crit_2 = conv_crit_1*0.1;
+	int NN[] = { 6, 12 }, P_Jump_Incr[] = { 1, 1 };
+	int nn = NN[advanced_tech], nExtraParas = 2, _iter = 0, Iter_Max = 50;
+	int p_jump, p_jump_0 = 1, p_jump_incr = P_Jump_Incr[advanced_tech];
+	int length = width*height, pattern_length = pattern_size*pattern_size;
+
+	double AA[144], BB[12], CC[12];
+
+	bool createMem = false;
+	if (Znssd_reqd == NULL)
+	{
+		createMem = true;
+		Znssd_reqd = new double[6 * (2 * hsubset + 1)*(2 * hsubset + 1)*nchannels];
+	}
+
+	int Pattern_cen_x = pattern_size / 2;
+	int Pattern_cen_y = pattern_size / 2;
+
+	double p[12], p_best[12];
+	for (i = 0; i < 12; i++)
+		p[i] = 0.0;
+
+	nn = NN[advanced_tech];
+	int pixel_increment_in_subset[] = { 1, 2, 2, 3 };
+
+	bool printout = false;
+	FILE *fp1 = 0, *fp2 = 0;
+
+	/// Iteration: Begin
+	bool Break_Flag = false;
+	DIC_Coeff_min = 4.0;
+	for (p_jump = p_jump_0; p_jump > 0; p_jump -= p_jump_incr)
+	{
+		for (k = 0; k < Iter_Max; k++)
+		{
+			m = -1;
+			t_1 = 0.0, t_2 = 0.0;
+			for (iii = 0; iii < 144; iii++)
+				AA[iii] = 0.0;
+			for (iii = 0; iii < 12; iii++)
+				BB[iii] = 0.0;
+
+			if (printout)
+				fp1 = fopen("C:/temp/src.txt", "w+"), fp2 = fopen("C:/temp/tar.txt", "w+");
+
+			for (jjj = -hsubset; jjj <= hsubset; jjj += p_jump)
+			{
+				for (iii = -hsubset; iii <= hsubset; iii += p_jump)
+				{
+					ii = Pattern_cen_x + iii, jj = Pattern_cen_y + jjj;
+					if (ii<0 || ii>(width - 1) || jj<0 || jj>(height - 1))
+						continue;
+
+					iii2 = iii*iii, jjj2 = jjj*jjj;
+					if (advanced_tech == 0)
+					{
+						II = POI.x + iii + p[0] + p[2] * iii + p[3] * jjj;
+						JJ = POI.y + jjj + p[1] + p[4] * iii + p[5] * jjj;
+					}
+					else if (advanced_tech == 1)
+					{
+						II = POI.x + iii + p[0] + p[2] * iii + p[3] * jjj + p[6] * iii2*0.5 + p[7] * jjj2*0.5 + p[8] * iii*jjj;
+						JJ = POI.y + jjj + p[1] + p[4] * iii + p[5] * jjj + p[9] * iii2*0.5 + p[10] * jjj2*0.5 + p[11] * iii*jjj;
+					}
+
+					if (II<0.0 || II>(double)(width - 1) - (1e-10) || JJ<0.0 || JJ>(double)(height - 1) - (1e-10))
+						continue;
+
+					for (kk = 0; kk < nchannels; kk++)
+					{
+						Get_Value_Spline(Para+kk*length, width, height, II, JJ, S, 0, InterpAlgo);
+						m_F = Pattern[ii + jj*pattern_size+kk*pattern_length];
+						m_G = S[0], gx = S[1], gy = S[2];
+						m++;
+
+						Znssd_reqd[6 * m + 0] = m_F, Znssd_reqd[6 * m + 1] = m_G;
+						Znssd_reqd[6 * m + 2] = gx, Znssd_reqd[6 * m + 3] = gy;
+						Znssd_reqd[6 * m + 4] = (double)iii, Znssd_reqd[6 * m + 5] = (double)jjj;
+						t_1 += m_F, t_2 += m_G;
+
+						if (printout)
+							fprintf(fp1, "%e ", m_F), fprintf(fp2, "%e ", m_G);
+					}
+				}
+				if (printout)
+					fprintf(fp1, "\n"), fprintf(fp2, "\n");
+			}
+			if (printout)
+				fclose(fp1), fclose(fp2);
+
+			if (k == 0)
+			{
+				t_f = t_1 / (m + 1);
+				t_1 = 0.0;
+				for (iii = 0; iii <= m; iii++)
+				{
+					t_4 = Znssd_reqd[6 * iii + 0] - t_f;
+					t_1 += t_4*t_4;
+				}
+				t_ff = sqrt(t_1);
+			}
+
+			t_g = t_2 / (m + 1);
+			t_2 = 0.0;
+			for (iii = 0; iii <= m; iii++)
+			{
+				t_5 = Znssd_reqd[6 * iii + 1] - t_g;
+				t_2 += t_5*t_5;
+			}
+			t_2 = sqrt(t_2);
+
+			DIC_Coeff = 0.0;
+			for (iii = 0; iii <= m; iii++)
+			{
+				t_4 = Znssd_reqd[6 * iii + 0] - t_f;
+				t_5 = Znssd_reqd[6 * iii + 1] - t_g;
+				t_6 = t_5 / t_2 - t_4 / t_ff;
+				t_3 = t_6 / t_2;
+				gx = Znssd_reqd[6 * iii + 2], gy = Znssd_reqd[6 * iii + 3];
+				iii_n = Znssd_reqd[6 * iii + 4], jjj_n = Znssd_reqd[6 * iii + 5];
+				CC[0] = gx, CC[1] = gy;
+				CC[2] = gx*iii_n, CC[3] = gx*jjj_n;
+				CC[4] = gy*iii_n, CC[5] = gy*jjj_n;
+				if (advanced_tech == 1)
+				{
+					CC[6] = gx*iii_n*iii_n*0.5, CC[7] = gx*jjj_n*jjj_n*0.5, CC[8] = gx*iii_n*jjj_n;
+					CC[9] = gy*iii_n*iii_n*0.5, CC[10] = gy*jjj_n*jjj_n*0.5, CC[11] = gy*iii_n*jjj_n;
+				}
+				for (j = 0; j < nn; j++)
+				{
+					BB[j] += t_3*CC[j];
+					for (i = 0; i < nn; i++)
+						AA[j*nn + i] += CC[i] * CC[j] / (t_2*t_2);
+				}
+
+				DIC_Coeff += t_6*t_6;
+			}
+
+			QR_Solution_Double(AA, BB, nn, nn);
+			for (iii = 0; iii < nn; iii++)
+				p[iii] -= BB[iii];
+
+			if (!IsNumber(p[0]) || abs(p[0]) > hsubset || abs(p[1]) > hsubset)
+			{
+				if (createMem)
+					delete[]Znssd_reqd;
+				return false;
+			}
+
+			if (DIC_Coeff < DIC_Coeff_min)	// If the iteration does not converge, this can be helpful
+			{
+				DIC_Coeff_min = DIC_Coeff;
+				for (iii = 0; iii < nn; iii++)
+					p_best[iii] = p[iii];
+			}
+
+			if (fabs(BB[0]) < conv_crit_1 && fabs(BB[1]) < conv_crit_1)
+			{
+				for (iii = 2; iii < nn; iii++)
+				{
+					if (fabs(BB[iii]) > conv_crit_2)
+						break;
+				}
+				if (iii == nn)
+					Break_Flag = true;
+			}
+
+			if (Break_Flag)
+				break;
+		}
+		// In case the iteration converges to "wrong" points, always use the data that lead to the least-square value.
+		for (iii = 0; iii < nn; iii++)
+			p[iii] = p_best[iii];
+	}
+	/// Iteration: End
+
+	if (createMem)
+		delete[]Znssd_reqd;
+	if (abs(p[0]) > hsubset || abs(p[1]) > hsubset || p[0] != p[0] || p[1] != p[1] || 1.0 - 0.5*DIC_Coeff_min < ZNCCthresh)
+		return false;
+
+	POI.x += p[0], POI.y += p[1];
+
+	return 1.0 - 0.5*DIC_Coeff_min;
+}
 bool TMatchingFine(double *Pattern, int pattern_size, int hsubset, double *Para, int width, int height, CPoint2 &POI, int advanced_tech, int Convergence_Criteria, double ZNCCthresh, int InterpAlgo, double *ShapePara, double *maxZNCC)
 {
 	// NOTE: initial guess is of the form of the homography
@@ -6160,9 +6350,9 @@ double BruteforceMatchingEpipolar(CPoint2 From, CPoint2 &Target, double *directi
 
 	//Take reference patch
 	int x0 = (int)(From.x + 0.5), y0 = (int)(From.y + 0.5);
-	for ( ll = 0; ll < nchannels; ll++) 
-		for ( mm = -hsubset; mm <= hsubset; mm++)
-			for ( nn = -hsubset; nn <= hsubset; nn++)
+	for (ll = 0; ll < nchannels; ll++)
+		for (mm = -hsubset; mm <= hsubset; mm++)
+			for (nn = -hsubset; nn <= hsubset; nn++)
 				tPatch[(mm + hsubset)*patchS + (nn + hsubset) + ll*patchLength] = Img1[(x0 + nn) + (y0 + mm)*width1 + ll*length1];
 
 	//Search along epipolar line
@@ -6196,7 +6386,7 @@ double BruteforceMatchingEpipolar(CPoint2 From, CPoint2 &Target, double *directi
 		double conv_crit_1 = LKArg.Convergence_Criteria, conv_crit_2 = conv_crit_1*0.1;
 
 		int x = x0, y = y0;
-		int x_n = (int)(From.x + direction[0] * bestDistparity + 0.5), y_n = (int)(From.y+ direction[1] * bestDistparity + 0.5);
+		int x_n = (int)(From.x + direction[0] * bestDistparity + 0.5), y_n = (int)(From.y + direction[1] * bestDistparity + 0.5);
 
 		nn = NN[LKArg.DIC_Algo];
 		nExtraParas = 2;
@@ -8826,13 +9016,13 @@ int TVL1OpticalFlowDriver(int frameID, int frameJump, int nCams, int width, int 
 	tvl1->set("iterations", argGF.iterations);
 	tvl1->set("nscales", argGF.nscales);
 	tvl1->set("warps", argGF.warps);
-	tvl1->set("useInitialFlow", true);
+	tvl1->set("useInitialFlow", false);
 
 	double start = omp_get_wtime();
 	for (jj = 0; jj < nCams; jj++)
 	{
-		sprintf(Fname1, "%s/Image/RandomTextureMap/C1_%05d.png", PATH, 1);
-		sprintf(Fname2, "%s/Image/RandomTextureMap/C1_%05d.png", PATH, frameID + frameJump);
+		sprintf(Fname1, "%s/%d.png", PATH, frameID);
+		sprintf(Fname2, "%s/%d.png", PATH, frameID + frameJump);
 		frame0 = imread(Fname1, IMREAD_GRAYSCALE); //only accept grayscale image
 		frame1 = imread(Fname2, IMREAD_GRAYSCALE); //only accept grayscale image
 
@@ -8853,8 +9043,8 @@ int TVL1OpticalFlowDriver(int frameID, int frameJump, int nCams, int width, int 
 			tvl1->calc(frame0, frame1, flow);
 			cout << "...finished in " << omp_get_wtime() - start << endl;
 
-			sprintf(Fname1, "%s/Flow/FX%d_%05d.dat", PATH, jj + 1, frameID);
-			sprintf(Fname2, "%s/Flow/FY%d_%05d.dat", PATH, jj + 1, frameID);
+			sprintf(Fname1, "%s/FX%d_%d.dat", PATH, jj + 1, frameID);
+			sprintf(Fname2, "%s/FY%d_%d.dat", PATH, jj + 1, frameID);
 			cvFlowtoFloat(flow, fx, fy);
 			if (!WriteFlowBinary(Fname1, Fname2, fx, fy, width, height))
 			{
