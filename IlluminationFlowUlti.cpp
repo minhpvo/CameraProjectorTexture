@@ -9021,8 +9021,8 @@ int TVL1OpticalFlowDriver(int frameID, int frameJump, int nCams, int width, int 
 	double start = omp_get_wtime();
 	for (jj = 0; jj < nCams; jj++)
 	{
-		sprintf(Fname1, "%s/%d/%d.png", PATH, jj,frameID);
-		sprintf(Fname2, "%s/%d/%d.png", PATH, jj, frameID + frameJump);
+		sprintf(Fname1, "%s/%d.png", PATH, frameID);
+		sprintf(Fname2, "%s/%d.png", PATH, frameID + frameJump);
 		frame0 = imread(Fname1, IMREAD_GRAYSCALE); //only accept grayscale image
 		frame1 = imread(Fname2, IMREAD_GRAYSCALE); //only accept grayscale image
 
@@ -9039,12 +9039,12 @@ int TVL1OpticalFlowDriver(int frameID, int frameJump, int nCams, int width, int 
 		//Foward flow
 		if (forward)
 		{
-			cout << "Compute forward flow for Cam " << jj<< endl;
+			cout << "Compute forward flow for Cam " << jj + 1 << endl;
 			tvl1->calc(frame0, frame1, flow);
 			cout << "...finished in " << omp_get_wtime() - start << endl;
 
-			sprintf(Fname1, "%s/%d/FX_%d.dat", PATH, jj, frameID);
-			sprintf(Fname2, "%s/%d/FY_%d.dat", PATH, jj, frameID);
+			sprintf(Fname1, "%s/FX%d_%d.dat", PATH, jj + 1, frameID);
+			sprintf(Fname2, "%s/FY%d_%d.dat", PATH, jj + 1, frameID);
 			cvFlowtoFloat(flow, fx, fy);
 			if (!WriteFlowBinary(Fname1, Fname2, fx, fy, width, height))
 			{

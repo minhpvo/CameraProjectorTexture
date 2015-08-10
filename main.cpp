@@ -6384,13 +6384,13 @@ int main(int argc, char* argv[])
 	//TrackOpenCVLK(1, 207, "C:/temp/X");
 	//ProjectBinaryCheckRandom("C:/temp", 32, 6);
 	//SURFMatching("C:/temp/oneshot_pattern", "C:/temp/oneshot_rect_gain", true);
-	char DataPATH[] = "E:/ICCV/JumpF";
+	char DataPATH[] = "E:/ICCV/JumpF/3";
 	char TDataPATH[] = "../../mnt";
 
 	int mode = atoi(argv[1]);
 	bool SimulationMode = false;
 
-	int width = 1280, height = 720, pwidth = 800, pheight = 600, nCams = 8, nPros = 1, nchannels = 1, nframes = 2, frameJump = 1;
+	int width = 1280, height = 720, pwidth = 800, pheight = 600, nCams = 1, nPros = 1, nchannels = 1, nframes = 2, frameJump = 1;
 	CPoint ROI[2]; //ROI[0].x = 200, ROI[0].y = height - 980, ROI[1].x = 1350, ROI[1].y = height - 150;
 	//ROI[0].x = 100, ROI[0].y = height-1000, ROI[1].x = 1800, ROI[1].y = height-20;
 	//ROI[0].x = 250, ROI[0].y = 50, ROI[1].x = 1600, ROI[1].y = height - 50;
@@ -6456,7 +6456,7 @@ int main(int argc, char* argv[])
 
 		TVL1Parameters tvl1arg;
 		tvl1arg.lamda = 0.5, tvl1arg.tau = 0.25, tvl1arg.theta = 0.01, tvl1arg.epsilon = 0.005, tvl1arg.iterations = 30, tvl1arg.nscales = 30, tvl1arg.warps = 20;
-		
+
 		cout << "Run TVL1 flow from: " << startID << " To: " << stopID << endl;
 		for (int ii = startID; ii <= stopID; ii += frameJump)
 			TVL1OpticalFlowDriver(ii, 1, nCams, width, height, DataPATH, tvl1arg, forward, backward);
